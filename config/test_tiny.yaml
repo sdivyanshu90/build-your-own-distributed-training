@@ -1,0 +1,67 @@
+# Tiny config for CI / local CPU+Gloo functional tests.
+# global_batch_size: 0 => auto-derived as micro_batch_size * grad_accum * dp_size,
+# so this single config is valid for any (tp, dp) topology the test chooses.
+seed: 1234
+grad_accum_steps: 2
+max_grad_norm: 1.0
+max_steps: 50
+log_interval: 5
+eval_interval: 25
+eval_steps: 4
+save_interval: 25
+warmup_profile_steps: 0
+profile_steps: 0
+checkpoint_dir: /tmp/dt_ckpt
+run_id: test_tiny
+backend: gloo
+
+model:
+  vocab_size: 256
+  d_model: 64
+  n_layers: 2
+  n_heads: 4
+  n_kv_heads: 2
+  ffn_hidden_size: 128
+  max_seq_len: 64
+  rope_theta: 10000.0
+  norm_eps: 1.0e-5
+  tie_embeddings: true
+  dropout: 0.0
+  attention_bias: false
+  mlp_bias: false
+
+parallel:
+  tp_size: 1
+  dp_size: -1
+  sharding_strategy: FULL_SHARD
+  activation_checkpointing: false
+  sequence_parallel: false
+  backward_prefetch: BACKWARD_PRE
+  forward_prefetch: true
+  limit_all_gathers: true
+  # CPU/Gloo path: keep everything fp32 (gloo bf16 reductions are unsupported).
+  param_dtype: float32
+  reduce_dtype: float32
+  buffer_dtype: float32
+
+optimizer:
+  name: adamw
+  lr: 3.0e-3
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
+  eps: 1.0e-8
+  fused: false
+
+scheduler:
+  warmup_steps: 5
+  max_steps: 50
+  min_lr: 3.0e-4
+
+data:
+  dataset_path: synthetic
+  tokenizer_name: ""
+  seq_len: 32
+  micro_batch_size: 4
+  global_batch_size: 0
+  num_workers: 0
+  shuffle: true
