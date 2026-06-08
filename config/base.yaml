@@ -1,0 +1,66 @@
+# Default hyperparameters. Concrete model configs (125m.yaml, 7b.yaml) override
+# the `model` and scaling-related fields; everything here is a sane default.
+seed: 1234
+grad_accum_steps: 1
+max_grad_norm: 1.0
+max_steps: 100000
+log_interval: 10
+eval_interval: 1000
+eval_steps: 50
+save_interval: 2000
+warmup_profile_steps: 10
+profile_steps: 5
+checkpoint_dir: checkpoints
+run_id: base
+backend: nccl
+
+model:
+  vocab_size: 32000
+  d_model: 768
+  n_layers: 12
+  n_heads: 12
+  n_kv_heads: 12
+  ffn_hidden_size: null      # auto: 256-multiple of 8/3 * d_model
+  max_seq_len: 2048
+  rope_theta: 10000.0
+  norm_eps: 1.0e-5
+  tie_embeddings: true
+  dropout: 0.0
+  attention_bias: false
+  mlp_bias: false
+
+parallel:
+  tp_size: 1
+  dp_size: -1
+  sharding_strategy: FULL_SHARD
+  activation_checkpointing: false
+  sequence_parallel: false
+  backward_prefetch: BACKWARD_PRE
+  forward_prefetch: true
+  limit_all_gathers: true
+  cpu_offload: false
+  param_dtype: bfloat16
+  reduce_dtype: float32
+  buffer_dtype: bfloat16
+
+optimizer:
+  name: adamw
+  lr: 3.0e-4
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
+  eps: 1.0e-8
+  fused: true
+
+scheduler:
+  warmup_steps: 2000
+  max_steps: 100000
+  min_lr: 3.0e-5
+
+data:
+  dataset_path: synthetic
+  tokenizer_name: gpt2
+  seq_len: 2048
+  micro_batch_size: 8
+  global_batch_size: 0
+  num_workers: 4
+  shuffle: true
