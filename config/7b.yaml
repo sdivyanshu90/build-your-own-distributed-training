@@ -1,0 +1,67 @@
+# LLaMA-7B scale (~6.7B params). Designed for multi-node: TP=8 intra-node
+# (NVLink), DP/FSDP across nodes. Activation checkpointing on (7B activations do
+# not fit otherwise at seq_len 4096). HYBRID_SHARD recommended for >1 node.
+seed: 1234
+grad_accum_steps: 8
+max_grad_norm: 1.0
+max_steps: 200000
+log_interval: 10
+eval_interval: 2000
+eval_steps: 50
+save_interval: 1000
+warmup_profile_steps: 20
+profile_steps: 5
+checkpoint_dir: checkpoints
+run_id: llama7b
+backend: nccl
+
+model:
+  vocab_size: 32000
+  d_model: 4096
+  n_layers: 32
+  n_heads: 32
+  n_kv_heads: 32
+  ffn_hidden_size: 11008
+  max_seq_len: 4096
+  rope_theta: 10000.0
+  norm_eps: 1.0e-5
+  tie_embeddings: false
+  dropout: 0.0
+  attention_bias: false
+  mlp_bias: false
+
+parallel:
+  tp_size: 8
+  dp_size: -1
+  sharding_strategy: HYBRID_SHARD
+  activation_checkpointing: true
+  sequence_parallel: true
+  backward_prefetch: BACKWARD_PRE
+  forward_prefetch: true
+  limit_all_gathers: true
+  cpu_offload: false
+  param_dtype: bfloat16
+  reduce_dtype: float32
+  buffer_dtype: bfloat16
+
+optimizer:
+  name: adamw
+  lr: 3.0e-4
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
+  eps: 1.0e-8
+  fused: true
+
+scheduler:
+  warmup_steps: 2000
+  max_steps: 200000
+  min_lr: 3.0e-5
+
+data:
+  dataset_path: synthetic
+  tokenizer_name: meta-llama/Llama-2-7b-hf
+  seq_len: 4096
+  micro_batch_size: 1
+  global_batch_size: 0
+  num_workers: 4
+  shuffle: true
