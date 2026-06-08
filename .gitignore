@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Training artifacts
+checkpoints/
+traces/
+*.bin
+wandb/
+
+# Env
+.venv/
+venv/
