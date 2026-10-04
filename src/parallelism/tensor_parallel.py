@@ -82,6 +82,7 @@ from torch.distributed.tensor.parallel import (
     ColwiseParallel,
     ParallelStyle,
     PrepareModuleInput,
+    PrepareModuleOutput,
     RowwiseParallel,
     SequenceParallel,
     parallelize_module,
@@ -437,8 +438,7 @@ def apply_tensor_parallelism(
     all_gather of the input embedding; for the model sizes targeted here the
     redundant replicated compute is cheaper than that critical-path collective,
     and FSDP already shards these large matrices across the DP axis. A
-    ``loss_parallel`` flag is provided for users who do want the column-parallel
-    head + parallel loss.
+    ``loss_parallel`` flag is reserved for a future column-parallel head + parallel loss.
 
     Args:
         model: The (un-wrapped) transformer. Must expose ``model.layers`` as an
@@ -449,8 +449,8 @@ def apply_tensor_parallelism(
             sequence dimension within the TP group (Megatron sequence
             parallelism). Reduces activation memory by ``tp_size`` on the norm
             inputs at the cost of two extra reshardings per block.
-        loss_parallel: If True, make the LM head column-parallel with a
-            DTensor output so a vocab-parallel cross-entropy can run.
+        loss_parallel: Reserved; **not implemented**. Passing ``True`` raises
+            ``NotImplementedError`` (it used to be silently ignored).
 
     Returns:
         The same ``model`` object, parallelised in place.
@@ -465,6 +465,10 @@ def apply_tensor_parallelism(
         ``use_orig_params=True`` to manage them — see
         :func:`src.parallelism.fsdp_utils.wrap_model_with_fsdp`.
     """
+    if loss_parallel:
+        raise NotImplementedError(
+            "loss_parallel (vocab-parallel head + cross-entropy) is not implemented."
+        )
     if tp_mesh.size() == 1:
         # Degenerate TP group: nothing to shard, return unchanged so callers
         # never branch on tp_size.
@@ -502,9 +506,11 @@ def apply_tensor_parallelism(
             # resharded to Replicate before the attention/MLP column ops.
             block_plan["attention_norm"] = SequenceParallel()
             block_plan["mlp_norm"] = SequenceParallel()
+            # Attention.forward(x, cos, sin): only x is sharded; cos/sin pass through
+            # (None layout). The MLP takes a single input.
             block_plan["attention"] = PrepareModuleInput(
-                input_layouts=(attn_in_layout,),
-                desired_input_layouts=(Replicate(),),
+                input_layouts=(attn_in_layout, None, None),
+                desired_input_layouts=(Replicate(), None, None),
             )
             block_plan["mlp"] = PrepareModuleInput(
                 input_layouts=(attn_in_layout,),
@@ -512,5 +518,26 @@ def apply_tensor_parallelism(
             )
 
         parallelize_module(block, tp_mesh, block_plan)
+
+    if sequence_parallel:
+        # The residual stream between blocks is a plain local (S/tp) shard, so it
+        # must be scattered once after the (replicated) embedding and gathered once
+        # before the final norm / LM head.
+        parallelize_module(
+            model,
+            tp_mesh,
+            {
+                "tok_embeddings": PrepareModuleOutput(
+                    output_layouts=Replicate(),
+                    desired_output_layouts=Shard(1),
+                    use_local_output=True,
+                ),
+                "norm": PrepareModuleInput(
+                    input_layouts=Shard(1),
+                    desired_input_layouts=Replicate(),
+                    use_local_output=True,
+                ),
+            },
+        )
 
     return model
