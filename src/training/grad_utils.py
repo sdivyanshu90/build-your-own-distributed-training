@@ -62,7 +62,7 @@ def clip_grad_norm_(
 ) -> float:
     """Clip gradients by global norm, correctly under FSDP/TP sharding.
 
-    Three code paths, chosen by what ``target`` is:
+    Four code paths, chosen by what ``target`` is:
       * **FSDP module** — delegate to ``FSDP.clip_grad_norm_``, which reduces the
         partial norm across the DP (and DTensor TP) groups. The right call for
         the production FSDP / FSDP+TP runs.
@@ -93,6 +93,8 @@ def clip_grad_norm_(
         True
     """
     if isinstance(target, FSDP):
+        if tp_group is not None and dist.get_world_size(tp_group) > 1:
+            return _fsdp_tp_clip(target, max_norm, norm_type, tp_group)
         total = target.clip_grad_norm_(max_norm if max_norm > 0 else float("inf"), norm_type)
         return float(total)
 
@@ -137,7 +139,8 @@ def _tp_aware_total_norm(
         A scalar tensor: the global gradient L2 norm.
     """
     tp_size = dist.get_world_size(tp_group) if tp_group is not None else 1
-    local_sq = torch.zeros((), dtype=torch.float32)
+    device = next((p.device for p in params), torch.device("cpu"))
+    local_sq = torch.zeros((), dtype=torch.float32, device=device)
     for p in params:
         g = p.grad
         if g is None:
@@ -153,6 +156,54 @@ def _tp_aware_total_norm(
     if tp_size > 1:
         dist.all_reduce(local_sq, op=dist.ReduceOp.SUM, group=tp_group)
     return local_sq.sqrt()
+
+
+def _fsdp_tp_clip(
+    model: FSDP,
+    max_norm: float,
+    norm_type: float,
+    tp_group: dist.ProcessGroup,
+) -> float:
+    """Global-norm clip for a 2D (FSDP x TP) model.
+
+    Each rank holds, per original parameter, the slice of the gradient that is
+    resident locally: a 1/dp piece of its TP-local tensor. The global squared norm
+    is therefore
+
+        sum over dp-shards, sum over tp-ranks of (weight * local_sq)
+
+    with ``weight = 1`` for TP-sharded tensors (every TP rank holds distinct
+    elements) and ``1/tp`` for TP-replicated tensors (identical on every TP rank,
+    so they would otherwise be counted ``tp`` times). The dp reduction is skipped
+    for ``NO_SHARD`` (grads are replicated, not sharded, across dp).
+    """
+    from torch.distributed.fsdp import ShardingStrategy
+
+    from src.parallelism.tensor_parallel import is_tp_sharded_param
+
+    if norm_type != 2.0:
+        raise ValueError(f"2D clipping supports L2 only, got norm_type={norm_type}.")
+    tp = dist.get_world_size(tp_group)
+    device = next(model.parameters()).device
+    local_sq = torch.zeros((), dtype=torch.float32, device=device)
+    for name, p in model.named_parameters():
+        g = p.grad
+        if g is None:
+            continue
+        g_local = g.to_local() if isinstance(g, DTensor) else g
+        sq = g_local.float().pow(2).sum()
+        local_sq = local_sq + (sq if is_tp_sharded_param(name) else sq / tp)
+    if model.sharding_strategy != ShardingStrategy.NO_SHARD:
+        dist.all_reduce(local_sq, op=dist.ReduceOp.SUM, group=model.process_group)
+    dist.all_reduce(local_sq, op=dist.ReduceOp.SUM, group=tp_group)
+    total_norm = local_sq.sqrt()
+    if max_norm > 0:
+        coef = max_norm / (float(total_norm) + 1e-6)
+        if coef < 1.0:
+            for p in model.parameters():
+                if p.grad is not None:
+                    p.grad.mul_(coef)
+    return float(total_norm)
 
 
 def _tp_aware_clip(

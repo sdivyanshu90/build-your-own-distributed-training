@@ -392,6 +392,21 @@ class RowParallelLinear(nn.Module):
 # --------------------------------------------------------------------------- #
 
 
+# Modules whose weights ``apply_tensor_parallelism`` shards (Col/Rowwise plan).
+_TP_SHARDED_MODULES = (
+    ".attention.wq.", ".attention.wk.", ".attention.wv.", ".attention.wo.",
+    ".mlp.gate_proj.", ".mlp.up_proj.", ".mlp.down_proj.",
+)
+
+
+def is_tp_sharded_param(name: str) -> bool:
+    """True if the parameter FQN belongs to a TP-sharded linear (see the plan in
+    :func:`apply_tensor_parallelism`); wrapper prefixes such as FSDP's
+    ``_fsdp_wrapped_module`` or checkpoint wrappers do not affect the match."""
+    padded = "." + name
+    return any(m in padded for m in _TP_SHARDED_MODULES)
+
+
 def apply_tensor_parallelism(
     model: nn.Module,
     tp_mesh: DeviceMesh,
