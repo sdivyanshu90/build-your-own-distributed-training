@@ -93,7 +93,7 @@ def resume_section() -> str:
              r["trainer_build_plus_load_s"], f'{r["ckpt_bytes_total"] / 1e6:.2f}',
              r["max_abs_loss_diff"], f'{r["bit_identical_steps"]}/{r["compared_steps"]}'] for r in recs]
     return md(rows, ["world", "dp", "params", "steps", "resumed at", "save (s)", "build+load (s)",
-                     "ckpt size (MB, all ranks)", "max |dloss|", "bit-identical steps"])
+                     "ckpt size (MB, all ranks)", "max abs dloss", "bit-identical steps"])
 
 
 def fault_section() -> str:
