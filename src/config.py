@@ -135,7 +135,12 @@ class ParallelConfig:
         limit_all_gathers: Rate-limit concurrent all-gathers to bound peak
             memory (FSDP "rate limiter").
         cpu_offload: Offload sharded params/grads to CPU (last-resort memory
-            relief; heavy throughput cost).
+            relief; heavy throughput cost). Wired to ``CPUOffload(offload_params=True)``;
+            not exercised by the CPU test-suite.
+        hybrid_shard_size: ``HYBRID_SHARD`` only: ranks per shard group (the DP
+            axis is split into ``dp_size // hybrid_shard_size`` replicas of a
+            ``hybrid_shard_size``-way FSDP group). ``0`` = ``local_world_size //
+            tp_size`` (shard within a node, replicate across nodes).
         param_dtype / reduce_dtype / buffer_dtype: Mixed-precision policy.
             See :mod:`src.utils.dtype` for why ``reduce_dtype`` is fp32.
     """
@@ -149,6 +154,7 @@ class ParallelConfig:
     forward_prefetch: bool = True
     limit_all_gathers: bool = True
     cpu_offload: bool = False
+    hybrid_shard_size: int = 0
     param_dtype: str = "bfloat16"
     reduce_dtype: str = "float32"
     buffer_dtype: str = "bfloat16"

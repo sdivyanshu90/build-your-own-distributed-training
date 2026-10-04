@@ -61,6 +61,7 @@ import torch.distributed as dist
 import torch.nn as nn
 from torch.distributed.fsdp import (
     BackwardPrefetch,
+    CPUOffload,
     FullOptimStateDictConfig,
     FullStateDictConfig,
     MixedPrecision,
@@ -147,7 +148,11 @@ def wrap_model_with_fsdp(
     # FSDP shards along the DP axis only. Passing the 1D dp sub-mesh is the
     # documented composition with TP: the resulting params are 2D DTensors
     # (Shard on tp, Shard on dp).
-    dp_mesh = ctx.mesh["dp"]
+    dp_mesh = (
+        _hybrid_shard_mesh(ctx, cfg)
+        if cfg.sharding_strategy == "HYBRID_SHARD"
+        else ctx.mesh["dp"]
+    )
 
     fsdp_kwargs: dict[str, Any] = {
         "auto_wrap_policy": auto_wrap_policy,
@@ -165,8 +170,39 @@ def wrap_model_with_fsdp(
         "device_id": ctx.device,
     }
 
+    if cfg.cpu_offload:
+        # Untested here (needs a GPU box to be meaningful); wired so the config
+        # flag is not silently ignored.
+        fsdp_kwargs["cpu_offload"] = CPUOffload(offload_params=True)
+
     wrapped = FSDP(model, **fsdp_kwargs)
     return wrapped
+
+
+def _hybrid_shard_mesh(ctx: ProcessContext, cfg: ParallelConfig) -> Any:
+    """2-D ``(replicate, shard)`` sub-mesh over this rank's DP axis.
+
+    FSDP's ``HYBRID_SHARD`` needs a 2-D mesh (shard within the inner dim,
+    all-reduce gradients across the outer dim); the trainer's ``mesh["dp"]`` is
+    1-D. The ``(dp, tp)`` rank grid is re-viewed as ``(replicate, shard, tp)``
+    (dp index = ``replicate * shard_size + shard``), so each shard group is a set
+    of *adjacent* DP ranks -- i.e. the same node when ``shard_size`` divides the
+    per-node DP ranks.
+    """
+    from torch.distributed.device_mesh import DeviceMesh
+
+    dp, tp = ctx.dims.dp_size, ctx.dims.tp_size
+    shard = cfg.hybrid_shard_size or max(1, ctx.env.local_world_size // tp)
+    if dp % shard != 0:
+        raise ValueError(
+            f"HYBRID_SHARD: shard group size {shard} (hybrid_shard_size or "
+            f"local_world_size//tp_size) must divide dp_size={dp}."
+        )
+    grid = ctx.mesh.mesh.reshape(dp // shard, shard, tp)
+    full = DeviceMesh(
+        ctx.mesh.device_type, grid, mesh_dim_names=("replicate", "shard", "tp")
+    )
+    return full["replicate", "shard"]
 
 
 def apply_activation_checkpointing(
