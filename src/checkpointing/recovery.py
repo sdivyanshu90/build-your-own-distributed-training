@@ -120,6 +120,12 @@ def validate_checkpoint(
                 errors.append(f"zero-byte shard for rank {r}: {shard}")
             elif deep:
                 _deep_check(shard, errors)
+            for extra in ("optim.pt", "rng.pt"):
+                f_extra = os.path.join(path, f"rank_{r}", extra)
+                if not os.path.exists(f_extra):
+                    errors.append(f"missing {extra} for rank {r}: {f_extra}")
+        if not os.path.exists(os.path.join(path, "scheduler.pt")):
+            errors.append("missing scheduler.pt")
     elif fmt == "full":
         full = os.path.join(path, "model_full.pt")
         if not os.path.exists(full):
