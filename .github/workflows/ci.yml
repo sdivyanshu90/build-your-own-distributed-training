@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    env:
+      CUDA_VISIBLE_DEVICES: ""
+      OMP_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install CPU-only torch and dev tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install "torch>=2.3,<2.7" --index-url https://download.pytorch.org/whl/cpu
+          # transformers is optional (HFTokenizer only); tests use ByteTokenizer.
+          pip install numpy pyyaml pytest ruff mypy
+      - name: Lint (ruff)
+        run: ruff check src/ train.py tests/ benchmarks/
+      - name: Type-check (mypy)
+        run: mypy src/
+      - name: Tests (CPU / gloo)
+        run: pytest -q -x --durations=10
