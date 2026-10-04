@@ -11,10 +11,9 @@
 #   fault        SIGKILL a rank, measure detection + recovery
 #   convergence  loss curves (single / FSDP / TP / 2D) on the synthetic corpus
 #
-# Safety rails: never more than 4 ranks, OMP/MKL threads chosen so that
-# world_size * threads <= 6 (policy "pr": 1 thread per rank; policy "budget":
-# ~6 threads in total), every run wrapped in `timeout`, and a free-RAM guard
-# before each launch. Results append to benchmarks/results/*.jsonl.
+# Safety rails: never more than 4 ranks, 1 OMP/MKL thread per rank (so
+# world_size * threads <= 4 <= 6), every run wrapped in `timeout`, and a free-RAM
+# guard before each launch. Results append to benchmarks/results/*.jsonl.
 set -euo pipefail
 STAGE=${1:?stage}
 PY=${2:-python}
@@ -39,7 +38,7 @@ run() {
   wait_for_ram
   OMP_NUM_THREADS=$th MKL_NUM_THREADS=$th timeout "$RUN_TIMEOUT" \
     nice -n 15 "$PY" -m torch.distributed.run --standalone --nproc_per_node="$n" \
-    "$HERE/$script" "$@"
+    "$HERE/$script" "$@" || echo "[run failed/timed out: $script $*]" >&2
 }
 
 case "$STAGE" in
@@ -51,10 +50,6 @@ case "$STAGE" in
       run "$1" 1 bench_train.py "${COMMON[@]}" --tp 1 --label "dp$1_pr"; done
     for tp in 2 4; do run "$tp" 1 bench_train.py "${COMMON[@]}" --tp "$tp" --label "tp${tp}_pr"; done
     run 4 1 bench_train.py "${COMMON[@]}" --tp 2 --label "2d_dp2tp2_pr"
-    # Policy "budget": ~6 threads in total (world 1 -> 6, 2 -> 3, 4 -> 1).
-    run 1 6 bench_train.py "${COMMON[@]}" --tp 1 --label "dp1_budget"
-    run 2 3 bench_train.py "${COMMON[@]}" --tp 1 --label "dp2_budget"
-    run 2 3 bench_train.py "${COMMON[@]}" --tp 2 --label "tp2_budget"
     ;;
   memory)
     OUT="$RES/memory.jsonl"
@@ -67,6 +62,19 @@ case "$STAGE" in
     run 2 1 bench_train.py "${COMMON[@]}" --tp 2 --label "mem_tp2"
     run 4 1 bench_train.py "${COMMON[@]}" --tp 4 --label "mem_tp4"
     run 4 1 bench_train.py "${COMMON[@]}" --tp 2 --label "mem_2d_dp2tp2"
+    ;;
+  rest)
+    # Runs that did not complete in the first pass (see docs/BENCHMARKS.md, run log).
+    OUT="$RES/scaling.jsonl"
+    COMMON=(--preset small --mbs 4 --seq-len 128 --steps 20 --warmup 3 --out "$OUT")
+    run 4 1 bench_train.py "${COMMON[@]}" --tp 2 --label "2d_dp2tp2_pr"
+    MC=(--preset mid --mbs 1 --seq-len 128 --steps 3 --warmup 1 --out "$RES/memory.jsonl")
+    run 2 1 bench_train.py "${MC[@]}" --tp 1 --sharding SHARD_GRAD_OP --label "mem_zero2_dp2"
+    run 2 1 bench_train.py "${MC[@]}" --tp 1 --sharding FULL_SHARD --label "mem_fsdp_dp2"
+    run 4 1 bench_train.py "${MC[@]}" --tp 1 --sharding FULL_SHARD --label "mem_fsdp_dp4"
+    run 2 1 bench_train.py "${MC[@]}" --tp 2 --label "mem_tp2"
+    run 4 1 bench_train.py "${MC[@]}" --tp 2 --label "mem_2d_dp2tp2"
+    run 4 1 count_collectives.py --tp 2 --accum 2 --out "$RES/collectives.jsonl"
     ;;
   comm)
     for n in 2 4; do run "$n" 1 bench_comm.py --out "$RES/comm.jsonl"; done

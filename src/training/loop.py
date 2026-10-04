@@ -151,7 +151,13 @@ def train_step(
         input_ids, labels = _move_batch(batch, device)
         local_tokens += input_ids.numel()
         is_last = i == accum - 1
-        with _maybe_no_sync(model, enabled=not is_last):
+        # In 2D (FSDP x TP) skip no_sync: with DTensor (TP) parameters, FSDP1 keeps
+        # the deferred *unsharded* DTensor grads and crashes in
+        # ``_writeback_orig_params`` ("invalid python storage") at the next
+        # micro-batch's forward (reproduced on torch 2.6). Reducing every
+        # micro-step is numerically equivalent, at K x the reduce-scatter traffic.
+        defer_sync = not is_last and not ctx.dims.tp_enabled
+        with _maybe_no_sync(model, enabled=defer_sync):
             with torch.autocast(
                 device_type=device.type, dtype=autocast_dt, enabled=use_autocast
             ):

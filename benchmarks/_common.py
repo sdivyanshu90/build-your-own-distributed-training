@@ -104,6 +104,7 @@ def hardware_info() -> dict[str, Any]:
         "python": platform.python_version(),
         "backend": "gloo",
         "device": "cpu",
+        "loadavg_1m_at_end": round(os.getloadavg()[0], 2),
         "omp_num_threads": os.environ.get("OMP_NUM_THREADS"),
         "torch_num_threads": torch.get_num_threads(),
     }
