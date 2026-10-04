@@ -9,6 +9,7 @@ test.)
 
 from __future__ import annotations
 
+import contextlib
 import os
 
 import torch
@@ -149,10 +150,8 @@ def test_resave_clears_stale_success_marker(single_process_pg: None, tmp_path) -
 
     ck._atomic_torch_save = boom
     try:
-        try:
+        with contextlib.suppress(RuntimeError):
             save_checkpoint(model, opt, sched, step=3, config=cfg, ctx=ctx)
-        except RuntimeError:
-            pass
     finally:
         ck._atomic_torch_save = real
     assert seen["marker_present"] is False
@@ -169,9 +168,11 @@ def test_load_rejects_topology_mismatch(single_process_pg: None, tmp_path) -> No
     cfg, ctx, model, opt, sched = _build(str(tmp_path))
     path = save_checkpoint(model, opt, sched, step=1, config=cfg, ctx=ctx)
     meta_path = os.path.join(path, "meta.json")
-    meta = json.load(open(meta_path))
+    with open(meta_path) as f:
+        meta = json.load(f)
     meta["dp_size"], meta["world_size"] = 4, 4
-    json.dump(meta, open(meta_path, "w"))
+    with open(meta_path, "w") as f:
+        json.dump(meta, f)
     with pytest.raises(ValueError, match="topology"):
         load_checkpoint(model, opt, sched, path, ctx)
 
