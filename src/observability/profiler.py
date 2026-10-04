@@ -53,6 +53,19 @@ class CommComputeBreakdown:
     comm_fraction: float
 
 
+def _time_key(device: bool) -> str:
+    """Name of the profiler event attribute holding self time.
+
+    PyTorch renamed ``self_cuda_time_total`` to ``self_device_time_total`` (the old
+    name no longer exists on torch 2.6, where ``getattr(..., 0.0)`` silently made
+    every communication fraction 0); support both.
+    """
+    if not device:
+        return "self_cpu_time_total"
+    probe = torch.autograd.profiler_util.FunctionEventAvg()
+    return "self_device_time_total" if hasattr(probe, "self_device_time_total") else "self_cuda_time_total"
+
+
 def build_profiler(
     output_dir: str,
     warmup_steps: int,
@@ -104,7 +117,7 @@ def export_chrome_trace(prof: profile, path: str) -> None:
 
 def text_summary(prof: profile, row_limit: int = 20) -> str:
     """Return a text table of the top ops by self CUDA (or CPU) time."""
-    sort_key = "self_cuda_time_total" if torch.cuda.is_available() else "self_cpu_time_total"
+    sort_key = _time_key(device=True) if torch.cuda.is_available() else "self_cpu_time_total"
     return prof.key_averages().table(sort_by=sort_key, row_limit=row_limit)
 
 
@@ -123,10 +136,13 @@ def communication_fraction(prof: profile) -> CommComputeBreakdown:
         behind compute — check ``forward_prefetch`` / ``BACKWARD_PRE`` and
         whether the TP group spans a slow (inter-node) link.
     """
+    # Device (GPU) time when CUDA is present, otherwise host self time (on CPU/gloo
+    # the self time of a collective op is the time blocked in it).
+    time_key = _time_key(device=torch.cuda.is_available())
     total = 0.0
     comm = 0.0
     for evt in prof.key_averages():
-        cuda_us = float(getattr(evt, "self_cuda_time_total", 0.0))
+        cuda_us = float(getattr(evt, time_key, 0.0))
         total += cuda_us
         name = evt.key.lower()
         if any(hint in name for hint in _COMM_OP_HINTS):
