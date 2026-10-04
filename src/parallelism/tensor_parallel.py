@@ -470,7 +470,7 @@ def apply_tensor_parallelism(
         # never branch on tp_size.
         return model
 
-    for layer_id, block in enumerate(model.layers):
+    for layer_id, block in enumerate(model.layers):  # type: ignore[arg-type]
         if not (hasattr(block, "attention") and hasattr(block, "mlp")):
             raise AttributeError(
                 f"Block {layer_id} is missing an 'attention'/'mlp' submodule "

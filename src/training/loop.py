@@ -80,7 +80,7 @@ def _maybe_no_sync(model: nn.Module, enabled: bool) -> contextlib.AbstractContex
         enabled: True for every micro-batch except the last.
     """
     if enabled and hasattr(model, "no_sync"):
-        return model.no_sync()
+        return model.no_sync()  # type: ignore[operator]
     return contextlib.nullcontext()
 
 

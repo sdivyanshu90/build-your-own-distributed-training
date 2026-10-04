@@ -201,12 +201,12 @@ def get_parallel_dims(mesh: DeviceMesh) -> ParallelDims:
 def get_dp_group(mesh: DeviceMesh) -> dist.ProcessGroup:
     """Return the data-parallel (FSDP) ``ProcessGroup`` for this rank."""
     # A single-dim sub-mesh's get_group returns one ProcessGroup (not a list).
-    return cast(dist.ProcessGroup, mesh["dp"].get_group())
+    return cast(dist.ProcessGroup, mesh["dp"].get_group())  # type: ignore[redundant-cast]
 
 
 def get_tp_group(mesh: DeviceMesh) -> dist.ProcessGroup:
     """Return the tensor-parallel ``ProcessGroup`` for this rank."""
-    return cast(dist.ProcessGroup, mesh["tp"].get_group())
+    return cast(dist.ProcessGroup, mesh["tp"].get_group())  # type: ignore[redundant-cast]
 
 
 def format_mesh_layout(mesh: DeviceMesh) -> str:

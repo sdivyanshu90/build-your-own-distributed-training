@@ -393,7 +393,7 @@ def _resolve_dataclass_type(ftype: Any, f: Any) -> type | None:
             if is_dataclass(candidate):
                 return type(candidate)
         return None
-    return ftype if is_dataclass(ftype) else None
+    return ftype if isinstance(ftype, type) and is_dataclass(ftype) else None
 
 
 def _expects_tuple(type_hint: Any) -> bool:
