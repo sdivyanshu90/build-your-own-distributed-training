@@ -286,6 +286,34 @@ class TrainingConfig:
                 f"d_model={self.model.d_model} not divisible by "
                 f"n_heads={self.model.n_heads}."
             )
+        tp = self.parallel.tp_size
+        if tp > 1:
+            m = self.model
+            assert m.n_kv_heads is not None and m.ffn_hidden_size is not None
+            for name, val in (
+                ("n_heads", m.n_heads),
+                ("n_kv_heads", m.n_kv_heads),
+                ("ffn_hidden_size", m.ffn_hidden_size),
+            ):
+                if val % tp != 0:
+                    raise ValueError(
+                        f"model.{name}={val} not divisible by tp_size={tp}; "
+                        f"tensor parallelism splits heads and the FFN width evenly."
+                    )
+        if self.model.n_heads % (self.model.n_kv_heads or self.model.n_heads) != 0:
+            raise ValueError(
+                f"n_heads={self.model.n_heads} not divisible by "
+                f"n_kv_heads={self.model.n_kv_heads} (GQA group size)."
+            )
+        if self.scheduler.max_steps != self.max_steps:
+            import warnings
+
+            warnings.warn(
+                f"scheduler.max_steps={self.scheduler.max_steps} != "
+                f"max_steps={self.max_steps}: the LR schedule will not end at the "
+                f"last step.",
+                stacklevel=2,
+            )
         valid_strategies = {"FULL_SHARD", "HYBRID_SHARD", "SHARD_GRAD_OP", "NO_SHARD"}
         if self.parallel.sharding_strategy not in valid_strategies:
             raise ValueError(
