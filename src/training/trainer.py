@@ -31,6 +31,7 @@ Invariants enforced at startup
 from __future__ import annotations
 
 import contextlib
+import os
 import time
 from collections.abc import Iterator
 from typing import Any
@@ -39,8 +40,8 @@ import torch
 import torch.distributed as dist
 from torch.utils.data import DataLoader, Dataset
 
-from src.checkpointing.checkpoint import load_checkpoint, save_checkpoint
-from src.checkpointing.recovery import require_valid_checkpoint
+from src.checkpointing.checkpoint import META_FILE, load_checkpoint, save_checkpoint
+from src.checkpointing.recovery import find_latest_valid_checkpoint, require_valid_checkpoint
 from src.config import TrainingConfig
 from src.data.dataloader import build_dataloader
 from src.data.dataset import PackedTokenDataset, SyntheticTokenDataset
@@ -95,13 +96,17 @@ class Trainer:
         )
         config.validate(self.ctx.world_size, self.ctx.dims.dp_size)
 
-        # 2. Seed per dp_rank (constant across the TP group).
-        seed_everything(config.seed, self.ctx.dims.dp_rank, deterministic=False)
+        # 2. Model init uses the SAME seed on every rank so all DP replicas start
+        #    from identical weights (FSDP's NO_SHARD/HYBRID_SHARD replicas, and
+        #    any dp_size-independent reproducibility, depend on it). The per-dp_rank
+        #    seed (constant across a TP group) is applied right after the build.
+        seed_everything(config.seed, 0, deterministic=False)
 
         self.logger = build_logger(self.ctx.rank, config.run_id)
 
         # 3. Build -> TP -> (AC) -> FSDP.
         model = build_model(config.model).to(self.ctx.device)
+        seed_everything(config.seed, self.ctx.dims.dp_rank, deterministic=False)
         apply_tensor_parallelism(
             model,
             self.ctx.mesh["tp"],
@@ -141,14 +146,15 @@ class Trainer:
         # 6. Resume.
         self.step = 0
         if config.resume_from:
+            resume_path = _resolve_resume_path(config)
             require_valid_checkpoint(
-                config.resume_from, expected_config=config.to_dict(), deep=False
+                resume_path, expected_config=config.to_dict(), deep=False
             )
             self.step = load_checkpoint(
-                self.model, self.optimizer, self.scheduler, config.resume_from, self.ctx
+                self.model, self.optimizer, self.scheduler, resume_path, self.ctx
             )
             self._fast_forward_data(self.step)
-            self.logger.info("resumed", step=self.step, path=config.resume_from)
+            self.logger.info("resumed", step=self.step, path=resume_path)
 
     # ----------------------------- setup helpers ----------------------------- #
 
@@ -318,6 +324,23 @@ class Trainer:
             self.logger.info("checkpoint_on_interrupt", step=self.step)
             raise
         self.logger.info("train_done", step=self.step)
+
+
+def _resolve_resume_path(config: TrainingConfig) -> str:
+    """Map ``resume_from`` to a concrete ``step_N`` checkpoint directory.
+
+    A path that is itself a checkpoint (contains ``meta.json``) is used as-is so
+    a bad one still fails loudly in validation. Otherwise it is treated as a run
+    directory and the newest *valid* ``step_*`` below it is chosen (skipping
+    half-written ones), as documented in the RUNBOOK.
+    """
+    path = str(config.resume_from)
+    if os.path.exists(os.path.join(path, META_FILE)):
+        return path
+    latest = find_latest_valid_checkpoint(path, expected_config=config.to_dict())
+    if latest is None:
+        raise FileNotFoundError(f"No valid checkpoint found under {path}.")
+    return latest
 
 
 def _metric_fields(m: Any) -> dict[str, Any]:

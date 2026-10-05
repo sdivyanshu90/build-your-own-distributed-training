@@ -175,8 +175,8 @@ class Transformer(nn.Module):
             ``loss`` is a scalar tensor (or ``None`` if no labels).
         """
         _, seqlen = tokens.shape
-        cos = self.rope_cos[:seqlen]
-        sin = self.rope_sin[:seqlen]
+        cos = self.rope_cos[:seqlen]  # type: ignore[index]
+        sin = self.rope_sin[:seqlen]  # type: ignore[index]
         h = self.tok_embeddings(tokens)
         for layer in self.layers:
             h = layer(h, cos, sin)

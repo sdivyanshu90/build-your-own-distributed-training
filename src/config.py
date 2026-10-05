@@ -135,7 +135,12 @@ class ParallelConfig:
         limit_all_gathers: Rate-limit concurrent all-gathers to bound peak
             memory (FSDP "rate limiter").
         cpu_offload: Offload sharded params/grads to CPU (last-resort memory
-            relief; heavy throughput cost).
+            relief; heavy throughput cost). Wired to ``CPUOffload(offload_params=True)``;
+            not exercised by the CPU test-suite.
+        hybrid_shard_size: ``HYBRID_SHARD`` only: ranks per shard group (the DP
+            axis is split into ``dp_size // hybrid_shard_size`` replicas of a
+            ``hybrid_shard_size``-way FSDP group). ``0`` = ``local_world_size //
+            tp_size`` (shard within a node, replicate across nodes).
         param_dtype / reduce_dtype / buffer_dtype: Mixed-precision policy.
             See :mod:`src.utils.dtype` for why ``reduce_dtype`` is fp32.
     """
@@ -149,6 +154,7 @@ class ParallelConfig:
     forward_prefetch: bool = True
     limit_all_gathers: bool = True
     cpu_offload: bool = False
+    hybrid_shard_size: int = 0
     param_dtype: str = "bfloat16"
     reduce_dtype: str = "float32"
     buffer_dtype: str = "bfloat16"
@@ -286,6 +292,34 @@ class TrainingConfig:
                 f"d_model={self.model.d_model} not divisible by "
                 f"n_heads={self.model.n_heads}."
             )
+        tp = self.parallel.tp_size
+        if tp > 1:
+            m = self.model
+            assert m.n_kv_heads is not None and m.ffn_hidden_size is not None
+            for name, val in (
+                ("n_heads", m.n_heads),
+                ("n_kv_heads", m.n_kv_heads),
+                ("ffn_hidden_size", m.ffn_hidden_size),
+            ):
+                if val % tp != 0:
+                    raise ValueError(
+                        f"model.{name}={val} not divisible by tp_size={tp}; "
+                        f"tensor parallelism splits heads and the FFN width evenly."
+                    )
+        if self.model.n_heads % (self.model.n_kv_heads or self.model.n_heads) != 0:
+            raise ValueError(
+                f"n_heads={self.model.n_heads} not divisible by "
+                f"n_kv_heads={self.model.n_kv_heads} (GQA group size)."
+            )
+        if self.scheduler.max_steps != self.max_steps:
+            import warnings
+
+            warnings.warn(
+                f"scheduler.max_steps={self.scheduler.max_steps} != "
+                f"max_steps={self.max_steps}: the LR schedule will not end at the "
+                f"last step.",
+                stacklevel=2,
+            )
         valid_strategies = {"FULL_SHARD", "HYBRID_SHARD", "SHARD_GRAD_OP", "NO_SHARD"}
         if self.parallel.sharding_strategy not in valid_strategies:
             raise ValueError(
@@ -365,7 +399,7 @@ def _resolve_dataclass_type(ftype: Any, f: Any) -> type | None:
             if is_dataclass(candidate):
                 return type(candidate)
         return None
-    return ftype if is_dataclass(ftype) else None
+    return ftype if isinstance(ftype, type) and is_dataclass(ftype) else None
 
 
 def _expects_tuple(type_hint: Any) -> bool:

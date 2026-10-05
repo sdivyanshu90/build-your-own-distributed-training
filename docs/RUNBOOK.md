@@ -51,8 +51,11 @@ CUDA_VISIBLE_DEVICES="" torchrun --standalone --nproc_per_node=4 train.py \
 ```
 
 > On a box with a single GPU, the CPU/Gloo path also needs `CUDA_VISIBLE_DEVICES=""`
-> so FSDP does not bind to the lone GPU. Pure-FSDP and pure-TP run on CPU; full
-> 2D FSDP+TP requires real multi-GPU NCCL on torch 2.3 (see ARCHITECTURE §6).
+> so FSDP does not bind to the lone GPU. Pure FSDP, pure TP and 2D FSDP×TP all run on
+> CPU/gloo with torch 2.6 (the earlier "2D needs GPUs on torch 2.3" note no longer
+> applies; see ARCHITECTURE §6). On a small machine keep
+> `world_size × OMP_NUM_THREADS <= physical cores` and at most a handful of ranks:
+> every rank is a full torch process and builds the whole model before sharding.
 
 ---
 
@@ -68,15 +71,25 @@ torchrun --standalone --nproc_per_node=8 train.py \
 ```
 
 * **Automatic latest-valid recovery (fault tolerance):** point `--resume-from` at
-  the run directory and the loop will pick the newest *valid* checkpoint, skipping
-  any half-written one. Programmatically:
-  `find_latest_valid_checkpoint("checkpoints/gpt125m_run1")`.
-* **Resume on a different topology / for inference:** save a `FULL_STATE_DICT`
-  export (`save_checkpoint(..., full=True)`) and load with `full=True`. The sharded
-  fast-path requires the original `world_size`.
+  the run directory (`checkpoints/gpt125m_run1`, i.e. the directory that *contains*
+  `step_*`) and the trainer picks the newest *valid* checkpoint, skipping any
+  half-written one (`Trainer`/`_resolve_resume_path`; validation checks the marker,
+  metadata, per-rank model/optimizer/RNG files, scheduler file and model-config
+  match). Pointing at a specific `step_N` directory uses exactly that one and fails
+  loudly if it is invalid.
+* **Different topology:** not supported. `load_checkpoint` raises a `ValueError`
+  naming both `(world, tp, dp)` triples. `save_checkpoint(..., full=True)` /
+  `load_checkpoint(..., full=True)` exist as API but the trainer neither writes nor
+  reads them.
+* **After a crash with `torchrun`:** `torchrun` tears down the job when a worker
+  dies (`--max-restarts 0` default). Relaunch the same command with
+  `--resume-from <run dir>`; `benchmarks/bench_fault.py` automates and times this.
 * **What is restored:** model params, optimizer moments, LR scheduler, global step,
   per-rank RNG, and the data position (the loop fast-forwards the window stream so
   step `N` sees the same data as a continuous run).
+
+Training writes no checkpoint at the end unless `max_steps % save_interval == 0`, and
+`SIGTERM` does not trigger one (only `KeyboardInterrupt` does).
 
 Verify a checkpoint before trusting it:
 
@@ -98,8 +111,8 @@ process group, a per-rank-divergent control-flow branch, or a mismatched
 * All ranks launched with identical config and the same `WORLD_SIZE`.
 * Every `all_reduce`/`all_gather`/`reduce_scatter` names the correct group
   (`ctx.dp_group` vs `ctx.tp_group` vs world) — this is the #1 2D-parallel bug.
-* The data loader hands every DP rank the **same number of steps** (`drop_last=True`
-  guarantees this); an unequal step count desyncs collectives at epoch end.
+* The data loader hands every DP rank the **same number of steps** (`drop_last=True` plus the equal-length `ShardedSampler`
+  guarantee this); an unequal step count desyncs collectives at epoch end.
 * Set `NCCL_DEBUG=INFO` and `TORCH_NCCL_BLOCKING_WAIT=1` to surface the stuck op
   and its participants; the default collective timeout is 30 min (`init_distributed`).
 
@@ -174,4 +187,8 @@ and writes a trace under `traces/{run_id}/`.
 3. Sweep `micro_batch_size` up until MFU plateaus; use `grad_accum_steps` to reach
    the target global batch.
 4. Run `bench_communication.py` with prefetch on/off to confirm comm is hidden.
-5. Gate CI with `bench_throughput.py --assert-min-mfu 0.40` so regressions fail.
+5. Gate regressions with `tests/performance/bench_throughput.py --assert-min-mfu 0.40`
+   (GPU MFU only; meaningless on CPU).
+
+CPU/gloo benchmark harness and results: `benchmarks/` and BENCHMARKS.md. Failure
+catalogue: TROUBLESHOOTING.md.

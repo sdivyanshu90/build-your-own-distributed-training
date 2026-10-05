@@ -19,13 +19,16 @@ def _all_rank_indices(n: int, dp_size: int, shuffle: bool, seed: int, epoch: int
     return out
 
 
-def test_every_index_seen_exactly_once() -> None:
-    # Dataset size deliberately NOT divisible by dp_size (37 across 4 ranks).
+def test_every_index_seen_at_most_once_and_only_remainder_dropped() -> None:
     n, dp = 37, 4
     per_rank = _all_rank_indices(n, dp, shuffle=True, seed=0, epoch=0)
     flat = [i for r in per_rank for i in r]
-    assert sorted(flat) == list(range(n)), "union of shards must be the whole dataset"
-    assert len(flat) == n, "no duplicated or dropped indices"
+    assert len(flat) == len(set(flat)), "no duplicated indices"
+    assert len(flat) == n - n % dp, "only the n % dp remainder may be dropped"
+    assert set(flat) <= set(range(n))
+    # Evenly divisible: the union is the whole dataset.
+    even = [i for r in _all_rank_indices(36, dp, shuffle=True, seed=0, epoch=0) for i in r]
+    assert sorted(even) == list(range(36))
 
 
 def test_ranks_are_disjoint() -> None:
@@ -47,8 +50,13 @@ def test_shuffle_differs_across_epochs_same_within_seed() -> None:
     assert e0 == e0_again, "same seed+epoch must reproduce the same order"
 
 
-def test_sizes_differ_by_at_most_one() -> None:
-    n, dp = 37, 4
-    per_rank = _all_rank_indices(n, dp, shuffle=False, seed=0, epoch=0)
-    sizes = [len(r) for r in per_rank]
-    assert max(sizes) - min(sizes) <= 1, f"shard sizes too uneven: {sizes}"
+def test_sizes_equal_across_ranks() -> None:
+    """Regression: unequal shards => unequal batch counts => collective hang."""
+    for n, dp in ((37, 4), (41, 3), (7, 8), (64, 4)):
+        for shuffle in (False, True):
+            per_rank = _all_rank_indices(n, dp, shuffle=shuffle, seed=0, epoch=0)
+            sizes = {len(r) for r in per_rank}
+            assert sizes == {n // dp}, f"n={n} dp={dp}: shard sizes {sizes}"
+            for r in range(dp):
+                s = ShardedSampler(n, num_replicas=dp, rank=r, shuffle=shuffle)
+                assert len(s) == len(list(s))

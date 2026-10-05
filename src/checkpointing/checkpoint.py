@@ -121,6 +121,15 @@ def save_checkpoint(
     rank_dir = os.path.join(ckpt_dir, f"rank_{ctx.rank}")
     os.makedirs(rank_dir, exist_ok=True)
 
+    # Re-saving into an existing step dir must not leave a stale marker vouching
+    # for files that are about to be overwritten: drop it first, then barrier so
+    # no rank starts writing before the marker is gone.
+    if ctx.is_rank0:
+        marker = os.path.join(ckpt_dir, SUCCESS_MARKER)
+        if os.path.exists(marker):
+            os.remove(marker)
+    ctx.barrier()
+
     model_sd = get_model_state_dict(model, full=full)
     optim_sd = get_optimizer_state_dict(model, optimizer, full=full)
 
@@ -197,6 +206,19 @@ def load_checkpoint(
         )
     rank_dir = os.path.join(path, f"rank_{ctx.rank}")
 
+    with open(os.path.join(path, META_FILE)) as f:
+        meta = json.load(f)
+    if not full:
+        saved = (meta.get("world_size"), meta.get("tp_size"), meta.get("dp_size"))
+        now = (ctx.world_size, ctx.dims.tp_size, ctx.dims.dp_size)
+        if saved != now:
+            raise ValueError(
+                f"[rank {ctx.rank}] sharded checkpoint {path} was saved with "
+                f"(world, tp, dp)={saved} but the current topology is {now}; "
+                f"per-rank shards are not interchangeable. Resume on the original "
+                f"topology or use a full=True export."
+            )
+
     if full:
         model_sd = torch.load(os.path.join(path, "model_full.pt"), map_location="cpu")
         load_model_state_dict(model, model_sd, full=True)
@@ -219,9 +241,12 @@ def load_checkpoint(
     scheduler.load_state_dict(sched_sd)
 
     if restore_rng:
-        rng = torch.load(os.path.join(rank_dir, "rng.pt"), map_location="cpu")
+        # The RNG blob holds pickled Python/NumPy state, which torch>=2.6's
+        # ``weights_only=True`` default rejects. The file is written by this
+        # module into the run's own checkpoint dir (trusted), so opt out explicitly.
+        rng = torch.load(
+            os.path.join(rank_dir, "rng.pt"), map_location="cpu", weights_only=False
+        )
         set_rng_state(rng)
 
-    with open(os.path.join(path, META_FILE)) as f:
-        meta = json.load(f)
     return int(meta["step"])

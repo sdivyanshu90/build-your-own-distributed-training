@@ -41,7 +41,15 @@ from torch.utils.data import DataLoader, Dataset, Sampler
 
 
 class ShardedSampler(Sampler[int]):
-    """Exact, non-duplicating index partition across DP ranks.
+    """Non-duplicating, equal-length index partition across DP ranks.
+
+    The permuted index list is truncated to a multiple of ``num_replicas``
+    (``dataset_len - dataset_len % num_replicas`` samples; at most
+    ``num_replicas - 1`` samples are skipped per epoch, a different set each
+    epoch when shuffling) so every rank yields **exactly the same number of
+    samples**, hence the same number of batches. Unequal shard lengths would let
+    one rank finish an epoch a batch early and desynchronise the collectives
+    (a hang), which is why we truncate rather than keep the remainder.
 
     Args:
         dataset_len: Number of samples in the dataset.
@@ -54,7 +62,7 @@ class ShardedSampler(Sampler[int]):
         ValueError: If ``rank`` is out of range for ``num_replicas``.
 
     Example:
-        >>> # union of all ranks == full set, pairwise disjoint
+        >>> # union of all ranks == full set when evenly divisible, pairwise disjoint
         >>> s0 = list(ShardedSampler(10, num_replicas=2, rank=0, shuffle=False))
         >>> s1 = list(ShardedSampler(10, num_replicas=2, rank=1, shuffle=False))
         >>> sorted(s0 + s1) == list(range(10)) and set(s0).isdisjoint(s1)
@@ -92,11 +100,13 @@ class ShardedSampler(Sampler[int]):
             indices = torch.randperm(self.dataset_len, generator=gen).tolist()
         else:
             indices = list(range(self.dataset_len))
-        # Strided partition: disjoint, union == full, sizes differ by <= 1.
-        return iter(indices[self.rank :: self.num_replicas])
+        # Strided partition of the first ``len(self) * num_replicas`` indices:
+        # disjoint and exactly equal-length on every rank.
+        usable = len(self) * self.num_replicas
+        return iter(indices[:usable][self.rank :: self.num_replicas])
 
     def __len__(self) -> int:
-        return len(range(self.rank, self.dataset_len, self.num_replicas))
+        return self.dataset_len // self.num_replicas
 
 
 def build_dataloader(

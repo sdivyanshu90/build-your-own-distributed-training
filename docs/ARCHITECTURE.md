@@ -58,6 +58,43 @@ Source map:
 | Checkpoint + recovery | `src/checkpointing/{checkpoint,recovery}.py` |
 | Metrics / profiler / logging | `src/observability/*` |
 
+### Mesh and process groups (4 ranks, `tp=2`, `dp=2`)
+
+```mermaid
+flowchart LR
+    subgraph dp0["dp_rank 0 (one TP group)"]
+      r0["rank 0<br/>tp 0"]---r1["rank 1<br/>tp 1"]
+    end
+    subgraph dp1["dp_rank 1 (one TP group)"]
+      r2["rank 2<br/>tp 0"]---r3["rank 3<br/>tp 1"]
+    end
+    r0 -. "dp group (FSDP): ranks 0,2" .- r2
+    r1 -. "dp group (FSDP): ranks 1,3" .- r3
+```
+
+Solid edges are TP groups (activation all-reduces, `mesh["tp"]`); dotted edges are
+FSDP groups (param all-gather / grad reduce-scatter, `mesh["dp"]`). The layout is
+printed at start-up by `format_mesh_layout`.
+
+### Data flow of one step
+
+```mermaid
+flowchart TB
+    DS[(Dataset)] --> SM["ShardedSampler (dp_rank of dp_size)"]
+    SM --> DL[DataLoader, micro-batch B]
+    DL -->|"K micro-batches"| W[window]
+    W --> FWD["forward: embedding -> blocks -> head -> loss"]
+    FWD --> BWD["backward (loss / K)"]
+    BWD --> CL["finite check + global-norm clip"]
+    CL --> OPT["AdamW on the local shard"]
+    OPT --> LOG["loss all-reduce over dp -> metrics (rank 0)"]
+    subgraph inside["inside forward/backward"]
+      AG["FSDP all-gather (dp)"] --> TPAR["TP all-reduce (tp)"] --> RS["FSDP reduce-scatter (dp), last micro-step"]
+    end
+    FWD -.-> inside
+    BWD -.-> inside
+```
+
 ---
 
 ## 2. Communication schedule
@@ -102,14 +139,17 @@ gradient sync. (See `src/training/loop.py` docstring — "the TP asymmetry".)
 | Phase | Collective | Group | Cost |
 |---|---|---|---|
 | Finite check | `all_reduce(MIN)` of a 0/1 flag | world | `O(1)` |
-| Global grad-norm clip | `all_reduce` of partial norm² | `dp` (+`tp` for DTensor) | `O(1)` |
+| Global grad-norm clip | `all_reduce` of partial norm² | FSDP only: `dp`; FSDP×TP: `dp` **and** `tp` (`grad_utils._fsdp_tp_clip`); TP only: `tp` | `O(1)` |
 | Loss reporting | `all_reduce(SUM)/dp_size` | `dp` | `O(1)` |
 | Parameter update | none (local on the resident shard) | — | `O(P/dp_size)` |
 
 > **Why these groups:** loss is averaged over `dp` only (TP ranks compute the same
 > loss); the finite check is over the **world** group so a NaN anywhere halts
 > everyone together; the grad norm reduces over `dp` (FSDP) and additionally over
-> `tp` for the TP-sharded DTensor params. Reduce over the wrong group and the
+> `tp` for the TP-sharded params. (`FSDP.clip_grad_norm_` alone reduces only over
+> the FSDP group; relying on it in 2D was a bug found in the audit — see
+> AUDIT_FINDINGS.md.) PARALLELISM.md lists the *measured* collective counts, which
+> refine the per-block tables above. Reduce over the wrong group and the
 > number looks plausible but is silently wrong.
 
 ---
@@ -170,8 +210,8 @@ higher launch overhead), which prefetch + `limit_all_gathers` manage.
 weights are DTensors and only the orig-params path keeps them addressable for FSDP
 to further shard along `dp`; (2) it preserves the original `nn.Parameter` identity
 so the optimizer can build sensible decay/no-decay param groups *after* wrapping.
-Cost: a per-forward writeback to sync orig params to the flat buffer (and the
-torch-2.3 CPU bug noted in §6).
+Cost: a per-forward writeback to sync orig params to the flat buffer. (An older
+note here blamed a torch-2.3 CPU bug; on torch 2.6 the combination works, §6.)
 
 ### 4.4 `reduce_dtype=float32` while `param_dtype=bfloat16`
 **Alternatives:** bf16 reduction (cheaper bandwidth).
@@ -198,8 +238,8 @@ versions are the executable specification.
 a vocab-parallel cross-entropy on the critical path, plus an all-gather of the
 input embedding. For the target model sizes, the redundant *replicated* compute of
 the embedding/head on each TP rank is cheaper than that collective, and FSDP
-already shards these big matrices across `dp`. A `loss_parallel` flag is provided
-for users who do want it.
+already shards these big matrices across `dp`. A `loss_parallel` keyword exists on
+`apply_tensor_parallelism` but is reserved: it raises `NotImplementedError`.
 
 ### 4.7 Attention reshapes with `-1` for the head count
 **Alternatives:** hard-code `n_heads`, or adjust `n_heads` after parallelisation.
@@ -232,54 +272,61 @@ and scans newest-first, so it never resumes the one the crash was writing.
 **Rationale:** FSDP over a 1-rank DP group shards nothing and only adds per-step
 bookkeeping/collectives over a trivial group. For pure-TP runs we use the TP model
 directly; `no_sync`/clip/state-dict helpers all detect the non-FSDP case, so the
-loop is otherwise unchanged. (This also sidesteps the torch-2.3 FSDP+DTensor CPU
-bug for the pure-TP test path.)
+loop is otherwise unchanged. (It does not matter for correctness on torch 2.6: 2D runs fine.)
 
 ---
 
 ## 5. Determinism
 
-Given the same seed and config, runs are reproducible, including across resumes:
+Given the same seed, config and topology, runs are reproducible, including across
+resumes:
 
-* **Seeding** is per `dp_rank` (`base_seed + dp_rank`) — DP ranks see different
-  data, but TP ranks (same `dp_rank`) stay bit-identical in every non-sharded
-  stochastic decision (dropout on the replicated residual, replicated weight init,
-  data order). A TP-group disagreement would make the row-parallel `all_reduce`
-  sum mismatched activations.
-* **Data positioning on resume** is exact: the trainer replays the window stream
-  so step `S` consumes the same sequences whether or not the run restarted
+* **Seeding.** Model initialisation uses `seed` on *every* rank (so all DP replicas,
+  and the shards FSDP/TP cut out of the same full tensors, come from one
+  initialisation); afterwards each rank is re-seeded with `seed + dp_rank`. DP ranks
+  therefore see different data order, while TP ranks (same `dp_rank`) stay in
+  lockstep for every non-sharded stochastic decision. (Before the audit the
+  per-`dp_rank` seed was applied *before* model construction, so `NO_SHARD`/hybrid
+  replicas started from different weights.)
+* **Data positioning on resume** is exact: the trainer replays the window stream so
+  step `S` consumes the same sequences whether or not the run restarted
   (`Trainer._fast_forward_data`).
 * **RNG state** (Python/NumPy/torch/CUDA) is checkpointed per rank and restored.
-* The **LR schedule** is a pure function of the step, so the LR at step `N` is
-  identical for a continuous run and a resumed one.
+* The **LR schedule** is a pure function of the step.
 
-This is validated by `test_checkpoint_resume.py` (bit-exact loss + LR at step `N`).
+The resume benchmark (BENCHMARKS.md) shows the post-resume loss curve bit-identical
+to the continuous run on CPU/gloo (single-run measurement; GPU kernels and NCCL
+reduction order can break bit-exactness).
 
 ---
 
 ## 6. Known limitations & future work
 
-* **2D FSDP+TP on torch 2.3 + CPU/Gloo.** Composing FSDP1's `use_orig_params`
-  writeback with DTensor (TP) gradients hits a `_same_storage` "invalid python
-  storage" error on the CPU/Gloo path in torch 2.3 (the writeback inspects DTensor
-  grad storage). The path is correct on real multi-GPU **NCCL** and on torch ≥ 2.4;
-  on this repo's CPU test path the 2D end-to-end run is therefore gated, while pure
-  FSDP and pure TP are fully exercised. Pure-TP grad clipping is handled with a
-  bespoke DTensor-aware global norm (`grad_utils._tp_aware_clip`).
-* **FSDP sharded optimizer state-dict requires CUDA in torch 2.3** (it calls
-  `torch.cuda.synchronize()` unconditionally), so FSDP checkpoint/resume is a
-  GPU-only path here; the checkpoint *logic* (atomic write, validation, RNG,
-  scheduler, recovery, resume determinism) is fully tested with plain models on CPU.
+* **Earlier notes claimed 2D FSDP×TP and FSDP checkpoint/resume were GPU-only
+  because of torch-2.3 bugs.** On the torch 2.6 CPU/gloo environment used for this
+  audit, both run: 2D loss and global grad-norm match the single-process reference
+  (`tests/integration/test_parallel_equivalence.py`, 4 ranks) and FSDP resume is
+  within the test tolerance on CPU (a 2-rank smoke run of the resume benchmark on the `tiny` preset showed 0.0 loss difference; the full-size dp=2 resume benchmark did not complete). What *does* remain GPU-only is the portable re-keyed
+  optimizer-state path in `fsdp_utils.get_optimizer_state_dict`: without CUDA the
+  code stores each rank's raw `optimizer.state_dict()` (`__fsdp_per_rank__`), which is
+  topology-locked. The CUDA path (`FSDP.optim_state_dict`) was not run here.
+* **Checkpoints cannot be resharded.** `load_checkpoint` now rejects a different
+  `(world, tp, dp)` explicitly; `full=True` save/load exists in the API but the
+  trainer never calls it.
+* **Durability.** Tensor files are written with `os.replace` but not `fsync`ed
+  (only `meta.json` and `_SUCCESS` are), so a *process* crash is handled and a power
+  loss is not guaranteed to be.
+* **Signals.** Only `KeyboardInterrupt` triggers a final checkpoint; `SIGTERM` does
+  not.
 * **No pipeline parallelism.** We do 2D (DP×TP), not 3D. Pipeline parallelism would
   shard *layers* across stages to cut activation memory further and is the natural
   next axis; it needs a micro-batch scheduler (1F1B) and is out of scope.
 * **No expert parallelism / MoE.**
-* **Sequence parallelism** is implemented behind a flag but exercised less than the
-  default path; it requires the norms to be registered as `SequenceParallel` and
-  adds two reshardings per block.
-* **HYBRID_SHARD** is wired through config for multi-node (shard intra-node,
-  replicate across nodes) but, like full 2D, is validated on real multi-node NCCL
-  rather than the single-box CPU test path.
+* **Sequence parallelism** is implemented behind a flag; see PARALLELISM.md for its
+  verified status.
+* **HYBRID_SHARD** needed a 2-D mesh that the wrapper did not build (it raised
+  `ValueError` for any `dp_size > 1`); fixed and covered by a 4-rank equivalence
+  test (2 replicas × 2-way shard). Not run on multi-node NCCL.
 * **Elastic training** is supported at the checkpoint level (restart → recover the
   last valid checkpoint → resume), but we do not implement a live membership-change
   protocol (rendezvous re-formation is delegated to `torchrun --max-restarts`).

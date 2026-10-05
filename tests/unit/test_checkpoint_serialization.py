@@ -9,6 +9,7 @@ test.)
 
 from __future__ import annotations
 
+import contextlib
 import os
 
 import torch
@@ -128,3 +129,57 @@ def test_config_mismatch_detected(single_process_pg: None, tmp_path) -> None:
     result = validate_checkpoint(path, expected_config=bad)
     assert not result.is_valid
     assert any("d_model" in e for e in result.errors)
+
+
+def test_resave_clears_stale_success_marker(single_process_pg: None, tmp_path) -> None:
+    """Regression: re-saving a step must not leave the old marker vouching for
+    files being overwritten (marker is removed before any write)."""
+    cfg, ctx, model, opt, sched = _build(str(tmp_path))
+    path = save_checkpoint(model, opt, sched, step=3, config=cfg, ctx=ctx)
+    marker = os.path.join(path, "_SUCCESS")
+    assert os.path.exists(marker)
+    # Simulate a crash mid-resave: wrap one write so it raises after the marker is cleared.
+    import src.checkpointing.checkpoint as ck
+
+    real = ck._atomic_torch_save
+    seen: dict[str, bool] = {}
+
+    def boom(obj, p):  # type: ignore[no-untyped-def]
+        seen["marker_present"] = os.path.exists(marker)
+        raise RuntimeError("crash during save")
+
+    ck._atomic_torch_save = boom
+    try:
+        with contextlib.suppress(RuntimeError):
+            save_checkpoint(model, opt, sched, step=3, config=cfg, ctx=ctx)
+    finally:
+        ck._atomic_torch_save = real
+    assert seen["marker_present"] is False
+    assert not validate_checkpoint(path).is_valid
+
+
+def test_load_rejects_topology_mismatch(single_process_pg: None, tmp_path) -> None:
+    """Regression: a sharded checkpoint from another (world,tp,dp) must not load
+    silently into whatever rank_N dir happens to exist."""
+    import json
+
+    import pytest
+
+    cfg, ctx, model, opt, sched = _build(str(tmp_path))
+    path = save_checkpoint(model, opt, sched, step=1, config=cfg, ctx=ctx)
+    meta_path = os.path.join(path, "meta.json")
+    with open(meta_path) as f:
+        meta = json.load(f)
+    meta["dp_size"], meta["world_size"] = 4, 4
+    with open(meta_path, "w") as f:
+        json.dump(meta, f)
+    with pytest.raises(ValueError, match="topology"):
+        load_checkpoint(model, opt, sched, path, ctx)
+
+
+def test_validate_flags_missing_optimizer_shard(single_process_pg: None, tmp_path) -> None:
+    cfg, ctx, model, opt, sched = _build(str(tmp_path))
+    path = save_checkpoint(model, opt, sched, step=1, config=cfg, ctx=ctx)
+    os.remove(os.path.join(path, "rank_0", "optim.pt"))
+    res = validate_checkpoint(path)
+    assert not res.is_valid and any("optim.pt" in e for e in res.errors)
