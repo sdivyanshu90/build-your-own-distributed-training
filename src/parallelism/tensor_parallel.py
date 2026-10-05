@@ -507,10 +507,12 @@ def apply_tensor_parallelism(
             block_plan["attention_norm"] = SequenceParallel()
             block_plan["mlp_norm"] = SequenceParallel()
             # Attention.forward(x, cos, sin): only x is sharded; cos/sin pass through
-            # (None layout). The MLP takes a single input.
+            # (None layout). The MLP takes a single input. torch annotates these
+            # parameters as a 1-tuple (Tuple[Optional[Placement]]) although it
+            # accepts one entry per positional input, hence the ignores.
             block_plan["attention"] = PrepareModuleInput(
-                input_layouts=(attn_in_layout, None, None),
-                desired_input_layouts=(Replicate(), None, None),
+                input_layouts=(attn_in_layout, None, None),  # type: ignore[arg-type]
+                desired_input_layouts=(Replicate(), None, None),  # type: ignore[arg-type]
             )
             block_plan["mlp"] = PrepareModuleInput(
                 input_layouts=(attn_in_layout,),
