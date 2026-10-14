@@ -52,16 +52,22 @@ position (by replaying `step·K` batches). Resume is **same-topology only**.
 **Optimizer-state caveat.** `fsdp_utils.get_optimizer_state_dict` uses FSDP's
 re-keyed optimizer state dict only when CUDA is available; otherwise it stores the
 rank's raw `optimizer.state_dict()` marked `__fsdp_per_rank__`. All CPU
-measurements here use the raw per-rank path; the CUDA path was not run (see
-BENCHMARKS.md for the single-GPU status).
+FSDP measurements here use the raw per-rank path. The new single-GPU CUDA runs use the bare model; the multi-GPU FSDP re-keyed path remains untested (see [BENCHMARKS.md](BENCHMARKS.md)).
 
-## Measured behaviour (CPU/gloo, `small` preset, 4.0M params)
+## Latest measured behaviour (2026-10-14)
 
-| world | dp | params | steps | resumed at | save (s) | build+load (s) | ckpt size (MB, all ranks) | max abs dloss | bit-identical steps |
-|---|---|---|---|---|---|---|---|---|---|
-| 1 | 1 | 3997696 | 30 | 15 | 0.7468 | 2.6121 | 48.06 | 0.0 | 15/15 |
+The full CPU/Gloo `small` benchmark and separate single-GPU fp32/bf16 benchmarks on the laptop and Colab T4 each run 30 steps and resume at step 15. All 15 compared post-resume losses are bit-identical in every case. This does not imply power-loss durability or support for a changed topology.
 
-See BENCHMARKS.md for the interpretation and caveats.
+| Path | Save seconds | Build+load seconds | Checkpoint MB | Identical losses |
+| --- | --- | --- | --- | --- |
+| CPU, 1 rank | 0.0362 | 0.1079 | 48.06 | 15/15 |
+| CPU FSDP, 2 ranks | 0.0773 | 0.1858 | 52.31 | 15/15 |
+| Laptop CUDA, 1 rank, fp32 | 0.1073 | 0.1938 | 48.06 | 15/15 |
+| Laptop CUDA, 1 rank, bf16 autocast | 0.0681 | 0.1664 | 48.06 | 15/15 |
+| Colab T4, 1 rank, fp32 | 0.0711 | 0.2208 | 48.06 | 15/15 |
+| Colab T4, 1 rank, bf16 autocast (non-native) | 0.0700 | 0.2333 | 48.06 | 15/15 |
+
+The model has 4,000,000 actual parameters; the raw config estimate is 3,997,696. GPU paths retain fp32 persistent state and do not exercise FSDP optimizer re-keying. Exact sizes and curves: [CPU data](../benchmarks/results/20261014/resume.jsonl), [laptop GPU data](../benchmarks/results/20261014/cuda-resume.jsonl), [Colab GPU data](../benchmarks/results/20261014-colab-t4/cuda-resume.jsonl), [full report](BENCHMARKS.md). T4 BF16 uses software support without native acceleration. Exactness is within each run and policy, not across devices or policies.
 
 ## Fault injection
 
@@ -75,7 +81,7 @@ training step.
 
 | world | save every | step at kill | committed ckpts | resumed from | steps lost | detect (s) | relaunch->first step (s) |
 |---|---|---|---|---|---|---|---|
-| 2 | 10 | 25 | step_10,step_20 | 20 | 5 | 5.61 | 62.28 |
+| 2 | 10 | 25 | step_10,step_20 | 20 | 5 | 0.47 | 3.73 |
 
 Not covered: node loss during a *save* with ranks blocked in the barrier (they wait
 for the collective timeout, 30 min by default, unless the launcher kills them first

@@ -17,27 +17,21 @@ run two pytest sessions at once**. Tests are CPU-bound and slow on a loaded mach
 (single-digit seconds to minutes each); FSDP/TP tests import torch in every spawned
 process.
 
-## Status of the suite (98 tests collected after the audit)
+## Latest complete verification (2026-10-14)
 
-* **Baseline, unmodified repo, torch 2.6.0 CPU:** 79 tests, `5 failed, 73 passed, 1
-  skipped` in 670 s (all 5 failures: the `weights_only` bug, finding #1; the skip is the
-  GPU stub below).
-* **After the fixes the complete suite was NOT run to completion**: the machine was
-  shared and heavily loaded, and the one full attempt hit its 18-minute timeout after 24
-  tests with no failure. Evidence for the post-fix state is per file, run separately:
-  checkpoint serialization + fault + resume + dataloader files (18 passed); config
-  validation (5 passed) and profiler (1 passed); equivalence file: FSDP dp=2, TP=2,
-  FSDP x TP, NO_SHARD replicas and the name rule (passed before the last two
-  fixes), sequence-parallel, HYBRID_SHARD and FSDP-with-accumulation (passed);
-  **`test_2d_with_grad_accumulation_matches_reference` failed before the 2D
-  `no_sync` fix and its post-fix run did not complete in time, so that fix is
-  unverified by a passing test** (the 2D convergence benchmark that exercises the same
-  path did not complete either).
-* Files not re-run after the later changes (seeding order, sampler, `no_sync` change):
-  `test_convergence_tiny`, `test_2d_parallel_forward`, `test_fsdp_wrapping`,
-  `test_grad_accumulation` and the remaining unit files; they passed in the baseline.
-  Re-run the suite before relying on it: `CUDA_VISIBLE_DEVICES="" pytest -q` (allow a
-  quiet machine ~10 minutes).
+Source `3f96b82778688f27f87f710592b1912103939921`, Python 3.12.15, torch 2.6.0+cu124. The correctness suite runs with CUDA hidden, Gloo, and `OMP_NUM_THREADS=MKL_NUM_THREADS=1` on six WSL logical CPUs.
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Complete pytest suite | 97 passed, 1 skipped; 98 collected, 83.99 s | [Log](../benchmarks/results/20261014/tests.log), [JUnit](../benchmarks/results/20261014/tests.xml) |
+| Ruff | All source, train.py, tests, and benchmark scripts pass | [Log](../benchmarks/results/20261014/ruff.log) |
+| Mypy | No issues in 33 source files | [Log](../benchmarks/results/20261014/mypy.log) |
+| 2D accumulation regression | Passes in the complete suite; full throughput and 150-step convergence cases complete | [Report](BENCHMARKS.md) |
+| GPU functional measurements | Single-GPU fp32/bf16 train steps, memory, reduced 151.9M shape, and exact resume complete | [Report](BENCHMARKS.md#single-gpu-cuda-throughput) |
+
+The one skip is the existing GPU reduction-dtype stub, which skips even on a multi-GPU box. Single-GPU measurements do not verify multi-GPU bf16 collectives or GPU FSDP optimizer-state conversion. Missing WSL GPU kernel profiler events are reported as unavailable, not a 0% communication measurement. The separate user-executed Colab Tesla T4 supplement completes 15 cases, checks all 15 resumed losses in each of two policies, and captures 6,147 GPU kernel events. Its BF16 autocast uses software support without native BF16 acceleration. No complete cloud pytest run is claimed. [Colab validation](../benchmarks/results/20261014-colab-t4/validation.json).
+
+The earlier partial post-fix verification is historical. Its missing CPU matrix points and full-suite status are superseded by this run; original timings remain in [the October 4/5 archive](archive/BENCHMARKS-20261004.md).
 
 ## Layout and what each file proves
 
@@ -92,6 +86,5 @@ mixed precision) that no test checks.
 
 `.github/workflows/ci.yml` (added in the audit; **there was none before**): Python 3.10
 and 3.12, CPU torch `>=2.3,<2.7` from the PyTorch CPU index (resolves to the newest
-2.6.x), `ruff`, `mypy src/`, then `pytest -q -x`. The workflow has not been executed
-on GitHub from this environment; its commands were run locally in the venv.
+2.6.x), `ruff`, `mypy src/`, then `pytest -q -x`. The October 14 verification runs these checks locally; no new GitHub CI result is claimed for this benchmark.
 Benchmarks are intentionally not part of CI.

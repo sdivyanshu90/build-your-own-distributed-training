@@ -18,11 +18,12 @@ set -euo pipefail
 STAGE=${1:?stage}
 PY=${2:-python}
 HERE=$(cd "$(dirname "$0")" && pwd)
-RES="$HERE/results"; mkdir -p "$RES"
+RES="${BENCH_RESULTS_DIR:-$HERE/results}"; mkdir -p "$RES"
 export CUDA_VISIBLE_DEVICES=""
 export PYTHONPATH="$HERE/..:$HERE"
 MIN_FREE_MB=${MIN_FREE_MB:-1500}
 RUN_TIMEOUT=${RUN_TIMEOUT:-300}
+FAILURES=0
 
 wait_for_ram() {
   while [ "$(free -m | awk '/^Mem:/{print $7}')" -lt "$MIN_FREE_MB" ]; do
@@ -38,7 +39,10 @@ run() {
   wait_for_ram
   OMP_NUM_THREADS=$th MKL_NUM_THREADS=$th timeout "$RUN_TIMEOUT" \
     nice -n 15 "$PY" -m torch.distributed.run --standalone --nproc_per_node="$n" \
-    "$HERE/$script" "$@" || echo "[run failed/timed out: $script $*]" >&2
+    "$HERE/$script" "$@" || {
+      echo "[run failed/timed out: $script $*]" >&2
+      FAILURES=$((FAILURES + 1))
+    }
 }
 
 case "$STAGE" in
@@ -99,3 +103,4 @@ case "$STAGE" in
     ;;
   *) echo "unknown stage $STAGE" >&2; exit 1;;
 esac
+[ "$FAILURES" -eq 0 ]

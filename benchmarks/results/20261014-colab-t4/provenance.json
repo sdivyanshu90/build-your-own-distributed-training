@@ -1,0 +1,16 @@
+{
+  "run_id": "20261014T133332Z",
+  "source_commit_pinned_by_notebook": "3f96b82778688f27f87f710592b1912103939921",
+  "archive_sha256": "6b4d55be3c192ace36ceb113625e93827147df3acfc9c535b17893e794f1401e",
+  "executed_notebook_sha256": "d750f5a627fe9a39af784786430bee638c88aee6b4fc7e7c0c2db4bdb9cc2462",
+  "original_artifacts_verified": 24,
+  "all_code_cells_executed_without_notebook_errors": true,
+  "instrumentation_matches_local_files": {
+    "benchmarks/_common.py": "ccc832ba2ac463955a9ce60ec40af895e8219fc54c53a2a1933b70b7432ffb50",
+    "benchmarks/bench_train.py": "3d7dad9eded983d77b1e537bfde18990fd940cff67bacd88a1f714cfdbac6a8c",
+    "benchmarks/bench_resume.py": "32341113cb767b54a206367c80c26e7d0051d8a6c19194b6df78ef232a0eacca",
+    "benchmarks/bench_profile.py": "567d33b0247925e1ff93027fe1a99a3cf6b406c82f2cdf648f8ba38956d14e34"
+  },
+  "precision_probe_in_original_notebook": "torch.cuda.is_bf16_supported() includes emulation by default in torch 2.6.0",
+  "scope": "User-executed Colab single-GPU synthetic benchmarks, not a cloud pytest suite or multi-GPU run"
+}

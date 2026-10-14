@@ -25,3 +25,5 @@ sequence below builds up the picture.
 
 Raw benchmark data: [`../benchmarks/results/`](../benchmarks/results/) (JSONL, plus a
 generated `SUMMARY.md`).
+
+Latest measurements: [full October 14 benchmark](BENCHMARKS.md), [dated snapshot](BENCHMARKS-20261014.md), and [raw artifacts](../benchmarks/results/20261014/README.md). The [October 4/5 report](archive/BENCHMARKS-20261004.md) preserves historical observations. The completed [Colab Tesla T4 supplement](BENCHMARKS-COLAB-20261014.md) has [verified raw artifacts](../benchmarks/results/20261014-colab-t4/README.md). The [prepared notebook](../benchmarks/colab.ipynb) supports another user-executed GPU run and distinguishes native BF16 from emulation.

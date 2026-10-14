@@ -36,6 +36,9 @@ def _cfg(a: argparse.Namespace, run_id: str, ckpt_dir: str) -> TrainingConfig:
     cfg = TrainingConfig.from_yaml(f"{REPO_ROOT}/config/test_tiny.yaml")
     apply_overrides(cfg, preset=a.preset, seq_len=None, micro_batch_size=None,
                     grad_accum=None, tp=1)
+    cfg.backend = a.backend
+    cfg.parallel.param_dtype = cfg.parallel.buffer_dtype = a.dtype
+    cfg.parallel.reduce_dtype = "float32"
     cfg.max_steps = cfg.scheduler.max_steps = a.steps
     cfg.scheduler.warmup_steps = 3
     cfg.checkpoint_dir = ckpt_dir
@@ -57,6 +60,8 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--preset", default="small", choices=["tiny", "small", "mid"])
     p.add_argument("--steps", type=int, default=30)
+    p.add_argument("--backend", choices=["gloo", "nccl"], default="gloo")
+    p.add_argument("--dtype", choices=["float32", "bfloat16"], default="float32")
     p.add_argument("--out", default=None)
     a = p.parse_args()
     half = a.steps // 2
@@ -64,7 +69,7 @@ def main() -> None:
     import torch.distributed as dist
     tmp_holder = [tempfile.mkdtemp(prefix="dt_bench_ckpt_") if int(os.environ.get("RANK", 0)) == 0 else None]
     from src.parallelism.process_groups import init_distributed
-    init_distributed("gloo")
+    init_distributed(a.backend)
     dist.broadcast_object_list(tmp_holder, src=0)
     tmp = tmp_holder[0]
     try:
@@ -87,6 +92,7 @@ def main() -> None:
         diffs = [abs(x - y) for x, y in zip(curve_a[half:], curve_c, strict=True)]
         emit({
             "bench": "resume", "preset": a.preset, "world_size": B.ctx.world_size,
+            "backend": a.backend, "dtype": a.dtype,
             "dp": B.ctx.dims.dp_size, "steps": a.steps, "resume_at": half,
             "n_params": B.config.model.num_parameters(),
             "ckpt_save_s": round(save_s, 4), "trainer_build_plus_load_s": round(build_and_load_s, 4),

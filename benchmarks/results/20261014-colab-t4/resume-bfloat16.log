@@ -1,0 +1,11 @@
+DeviceMesh layout (dp_size=1, tp_size=1):
+        tp=0     
+  dp=0   r0     
+DeviceMesh layout (dp_size=1, tp_size=1):
+        tp=0     
+  dp=0   r0     
+DeviceMesh layout (dp_size=1, tp_size=1):
+        tp=0     
+  dp=0   r0     
+{"ts": 0.2309, "level": "INFO", "rank": 0, "run_id": "B", "event": "resumed", "step": 15, "path": "/tmp/dt_bench_ckpt_z7g1kojg/B/step_15"}
+{"bench": "resume", "preset": "small", "world_size": 1, "backend": "nccl", "dtype": "bfloat16", "dp": 1, "steps": 30, "resume_at": 15, "n_params": 3997696, "ckpt_save_s": 0.07, "trainer_build_plus_load_s": 0.2333, "ckpt_bytes_total": 48063939, "max_abs_loss_diff": 0.0, "bit_identical_steps": 15, "compared_steps": 15, "loss_continuous": [8.34021, 8.35376, 8.318359, 8.330811, 8.352051, 8.369141, 8.354126, 8.408569, 8.406494, 8.437256, 8.355957, 8.438477, 8.424194, 8.444214, 8.415405, 8.380005, 8.346558, 8.380493, 8.290161, 8.357788, 8.37915, 8.35144, 8.374512, 8.384277, 8.234253, 8.299805, 8.312866, 8.268188, 8.303345, 8.301392], "loss_resumed_second_half": [8.380005, 8.346558, 8.380493, 8.290161, 8.357788, 8.37915, 8.35144, 8.374512, 8.384277, 8.234253, 8.299805, 8.312866, 8.268188, 8.303345, 8.301392], "hardware": {"platform": "Linux-6.6.122+-x86_64-with-glibc2.39", "cpu": "Intel(R) Xeon(R) CPU @ 2.00GHz", "cpu_count": 2, "torch": "2.6.0+cu124", "python": "3.12.15", "backend": "nccl", "device": "cuda", "cuda": "12.4", "gpu": "Tesla T4", "loadavg_1m_at_end": 1.62, "omp_num_threads": "1", "torch_num_threads": 1}}

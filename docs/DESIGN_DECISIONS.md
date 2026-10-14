@@ -63,15 +63,16 @@ Model/optimizer/scheduler files load under the safe default; the RNG file is
 self-written inside the run's checkpoint directory, and is loaded with
 `weights_only=False`. Do not load checkpoints from untrusted sources.
 
-## ADR-17 Benchmarks are CPU/gloo with a per-rank thread policy
-*Context.* The only hardware is an 8-core laptop CPU with ~6 GB RAM shared with other
-jobs. *Decision.* Measure with `gloo`, report two thread policies (1 thread/rank to
+## ADR-17 CPU benchmarks use Gloo and an explicit thread policy
+*Original context (October 4/5).* Available hardware was an 8-core laptop CPU with ~6 GB RAM shared with other jobs. *Decision.* Measure with `gloo`, report two thread policies (1 thread/rank to
 isolate parallel overhead, and a ~6-thread total budget), never exceed 4 ranks,
 bound every run with `timeout` and a free-RAM guard, and label every table as CPU.
 *Rejected.* Extrapolating GPU numbers (unmeasurable here); using the 2 GB MX330
 (single device, not useful for multi-GPU behaviour). *Consequences.* Absolute
 tokens/s are irrelevant for GPU planning; what transfers is the *structure*:
 collective counts, memory partitioning, equivalence, checkpoint/recovery behaviour.
+
+*October 14 update.* The complete CPU/Gloo matrix runs in WSL on Ryzen 7 8845HS (6 visible logical CPUs, 8.7 GiB RAM), with one thread per rank and a separate four-requested-thread comparison (observed PyTorch totals 3/4/4). Actual single-GPU measurements now run on the RTX 3050 Laptop and, independently, a user-executed Colab Tesla T4. They do not establish multi-GPU behavior. The T4 BF16-autocast points use software support without native BF16 acceleration. Hardware, workload and precision stay explicit in [the current report](BENCHMARKS.md).
 
 ## ADR-18 Keep the hand-written TP linears as a tested reference
 They are not on the training path (DTensor is), but they are the only place where

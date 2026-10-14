@@ -1,0 +1,35 @@
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+                                                   Name    Self CPU %      Self CPU   CPU total %     CPU total  CPU time avg       CPU Mem  Self CPU Mem      CUDA Mem  Self CUDA Mem    # of Calls  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+enumerate(DataLoader)#_SingleProcessDataLoaderIter._...        12.24%      40.420ms        28.89%      95.419ms      15.903ms           0 b     -96.37 Kb           0 b           0 b             6  
+                                            aten::empty         1.78%       5.880ms         1.78%       5.887ms       1.576us      47.22 Kb      47.22 Kb      90.76 Mb      90.76 Mb          3735  
+                                          aten::randint         2.03%       6.707ms         3.65%      12.062ms       3.896us      24.19 Kb       1.53 Kb           0 b           0 b          3096  
+                                          aten::random_         0.57%       1.867ms         0.57%       1.867ms       0.603us           0 b           0 b           0 b           0 b          3096  
+                                           aten::select         6.86%      22.652ms         8.37%      27.648ms       2.246us           0 b           0 b           0 b           0 b         12312  
+                                       aten::as_strided         2.32%       7.677ms         2.32%       7.677ms       0.505us           0 b           0 b           0 b           0 b         15207  
+                                             aten::view         0.79%       2.595ms         0.79%       2.595ms       2.923us           0 b           0 b           0 b           0 b           888  
+                                            aten::copy_         2.94%       9.722ms         8.07%      26.640ms       6.074us           0 b           0 b           0 b           0 b          4386  
+                                             aten::item         1.85%       6.107ms         5.32%      17.558ms       2.752us           0 b           0 b           0 b           0 b          6381  
+                              aten::_local_scalar_dense         0.42%       1.379ms         3.47%      11.451ms       1.795us           0 b           0 b           0 b           0 b          6381  
+                                            aten::slice         1.02%       3.367ms         1.27%       4.205ms       4.551us           0 b           0 b           0 b           0 b           924  
+                                            aten::stack         0.07%     235.087us         0.32%       1.067ms      71.144us      48.00 Kb           0 b       1.50 Kb           0 b            15  
+                                              aten::cat         0.41%       1.364ms         0.62%       2.034ms      32.281us      48.00 Kb      48.00 Kb       9.00 Mb       9.00 Mb            63  
+                                       aten::pin_memory         0.02%      71.701us         1.46%       4.820ms     401.641us           0 b           0 b           0 b           0 b            12  
+                                        aten::is_pinned         1.31%       4.340ms         1.37%       4.510ms     375.810us           0 b           0 b           0 b           0 b            12  
+                               cudaPointerGetAttributes         0.05%     169.264us         0.05%     169.264us      14.105us           0 b           0 b           0 b           0 b            12  
+                                      aten::_pin_memory         0.05%     152.615us         0.07%     238.274us      19.856us           0 b           0 b           0 b           0 b            12  
+                                             aten::set_         0.01%      22.732us         0.01%      22.732us       1.894us           0 b           0 b           0 b           0 b            12  
+                                        cudaEventRecord         0.04%     120.526us         0.04%     120.526us       5.022us           0 b           0 b           0 b           0 b            24  
+                    Optimizer.zero_grad#AdamW.zero_grad         0.21%     684.533us         0.21%     684.533us     228.178us           0 b           0 b     -45.78 Mb     -45.78 Mb             3  
+                                            aten::zeros         0.32%       1.068ms         2.46%       8.119ms      27.065us           0 b           0 b      66.01 Mb           0 b           300  
+                                            aten::zero_         0.23%     767.442us         1.83%       6.047ms      19.760us           0 b           0 b           0 b           0 b           306  
+                                            aten::fill_         0.36%       1.193ms         1.65%       5.463ms      17.510us           0 b           0 b           0 b           0 b           312  
+                                       cudaLaunchKernel        19.15%      63.233ms        19.15%      63.233ms      12.435us           0 b           0 b           0 b           0 b          5085  
+                                               aten::to         0.55%       1.817ms         8.23%      27.177ms      21.215us         456 b           0 b     316.55 Mb           0 b          1281  
+                                         aten::_to_copy         1.54%       5.081ms         7.68%      25.360ms      28.655us         456 b           0 b     316.55 Mb           0 b           885  
+                                    aten::empty_strided         1.50%       4.970ms         1.50%       4.970ms       5.020us         456 b         456 b     340.55 Mb     340.55 Mb           990  
+                                        cudaMemcpyAsync         2.00%       6.601ms         2.00%       6.601ms      17.057us           0 b           0 b           0 b           0 b           387  
+                                        aten::embedding         0.09%     303.405us         0.30%     998.688us     166.448us           0 b           0 b       3.00 Mb           0 b             6  
+                                          aten::reshape         0.41%       1.338ms         1.58%       5.203ms       7.051us           0 b           0 b      12.00 Mb           0 b           738  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+Self CPU time total: 330.278ms

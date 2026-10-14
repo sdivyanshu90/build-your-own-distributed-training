@@ -79,7 +79,7 @@ train.py                     # torchrun entry point
 tests/{unit,integration,performance,fault}/
 config/{base,125m,7b,test_tiny}.yaml
 docs/                       # handbook (index: docs/README.md)
-benchmarks/                 # reproducible CPU/gloo benchmark harness + raw results
+benchmarks/                 # CPU/Gloo and CUDA benchmark tools, Colab notebook, raw results
 .github/workflows/ci.yml
 ```
 
@@ -101,17 +101,14 @@ parent, so a failure on rank 1 surfaces as a test failure rather than a hang.
 
 ### What runs where
 
-Verified on **torch 2.6.0 (CPU build), gloo, Python 3.10** (see
-[docs/TESTING.md](docs/TESTING.md) and [docs/AUDIT_FINDINGS.md](docs/AUDIT_FINDINGS.md)):
+Verified on **2026-10-14**, Python 3.12.15 / torch 2.6.0+cu124, Ryzen 7 8845HS under WSL2:
 
-- Unit tests and the TP/FSDP/2D equivalence tests (full post-fix suite run did not complete; see [docs/TESTING.md](docs/TESTING.md)) (loss and global gradient norm
-  equal a single-process reference for FSDP, TP, FSDP x TP, sequence-parallel TP and
-  HYBRID_SHARD), convergence, bit-exact resume (single process and FSDP dp=2),
-  dataloader sharding, fault/corrupt-checkpoint tests.
-- The earlier "2D FSDP+TP and FSDP resume are GPU-only" note is obsolete on torch 2.6
-  CPU. What remains **not exercised**: NCCL/CUDA paths, the FSDP re-keyed optimizer
-  state-dict path (CPU uses a per-rank raw state), bf16/fp16 training, multi-node,
-  the 125M and 7B configs. One test is a skipped GPU stub.
+- Full CPU/Gloo suite: **97 passed, 1 skipped in 83.99 seconds**, including 2D accumulation, sequence-parallel and HYBRID_SHARD equivalence, convergence, checkpoint/resume, and fault tests.
+- Complete CPU matrix: scaling, memory, 2-/4-rank collectives, exact resume, SIGKILL recovery, and all four convergence layouts.
+- Real single-GPU CUDA training on RTX 3050 Laptop 4 GiB and a separately executed Colab Tesla T4: fp32 and bf16 autocast, activation-checkpointing memory, reduced 151.9M model shape, and bit-exact resume in both precision policies. The T4 BF16 runs use software support without native BF16 acceleration; all 15 Colab cases complete.
+- Still unmeasured: multi-GPU NCCL/FSDP/TP/2D, CUDA FSDP optimizer re-keying, multi-node, 7B, and the shipped full-batch 125M workload. The skipped test remains a multi-GPU mixed-precision placeholder. GPU profiler kernel timings are unavailable in WSL; the separate Colab trace captures 6,147 kernel events.
+
+Details and evidence: [testing](docs/TESTING.md), [full benchmark](docs/BENCHMARKS.md).
 
 The audit found and fixed 17 issues (several that broke documented features: resume on
 torch 2.6, 2D gradient clipping, HYBRID_SHARD, sequence parallelism, 2D gradient
@@ -119,29 +116,33 @@ accumulation); see the findings table.
 
 ---
 
-## Benchmarks (CPU / gloo, not GPU)
+## Benchmarks (CPU/Gloo and single-GPU CUDA)
 
-Measured on CPU with the gloo backend (i5-1135G7, shared laptop, torch 2.6.0,
-2026-10-04/05), **not on GPUs**; no GPU run was possible (see BENCHMARKS.md).
+Measured **2026-10-14**, with laptop results in `benchmarks/results/20261014/` and the user-executed Colab run in `benchmarks/results/20261014-colab-t4/`. Training source and shipped configs are unchanged.
 
-| Measurement | Result |
-|---|---|
-| Equivalence to single-process reference (loss, global grad norm) | FSDP, TP, FSDP x TP, seq-parallel TP, HYBRID_SHARD, FSDP accumulation: pass (per-file runs); 2D accumulation fix unverified |
-| Resume exactness (`small`, 4.0M params, resume at step 15 of 30) | 15/15 post-resume losses bit-identical (max abs diff 0.0) |
-| Checkpoint (`small`, 1 rank) | save 0.75 s, 48.1 MB on disk |
-| Kill 1 of 2 ranks (SIGKILL) | job torn down in 5.6 s; relaunch to first step 62 s (loaded machine); resumed from step 20 of 25 (5 steps lost) |
-| Collective latency floor (gloo, 2 ranks, 1-4 KB) | ~0.6-1.5 ms; all-reduce bus bandwidth ~0.8 GB/s at 4-16 MB |
-| Throughput, `small` model, 1 thread/rank | 1 proc 1536 tok/s; FSDP dp=2 1884 (1.23x); FSDP dp=4 1320 (0.86x); TP=2 778; TP=4 519 |
-| Resident state, `mid` 27.8M params, fp32 | 424 MiB/rank unsharded (= 16 B x P); NO_SHARD dp=2 identical per rank |
-| Collectives per step (2-layer model) | FSDP: 2 all-gathers per block + 1 root, 1 reduce-scatter per unit; TP: 7 all-reduces per layer per micro-batch |
+| Measurement | Latest result |
+| --- | --- |
+| CPU small model, 1 thread/rank, median of three DP observations | 1 rank 2,060.4 tok/s; FSDP dp=2 3,551.3; dp=4 6,247.0 |
+| CPU budget control, four total threads requested | Observed 1×3 threads 3,987.3 tok/s; 2×2 5,066.7; 4×1 6,206.5 |
+| CPU TP/2D scaling, first complete sweep | TP=2 1,983.5 tok/s; TP=4 1,777.6; DP2×TP2 3,170.3 |
+| Mid-model resident state, fp32 | 424.1 MiB unsharded; FSDP dp=2 212.1/rank, dp=4 106.0/rank; TP=2 244.1/rank; 2D 122.1/rank |
+| Checkpoint/resume | CPU 1/2 ranks and single-GPU fp32/bf16: 15/15 post-resume losses bit-identical in every case |
+| SIGKILL recovery, two CPU ranks | Detection 0.47 s; relaunch→first metric 3.73 s; resumed from step 20 after reaching 25 |
+| Laptop CUDA small/mid throughput | Small fp32 19,716.6 tok/s; mid bf16 autocast 9,368.7 tok/s |
+| Laptop CUDA activation checkpointing, mid model, sequence 1024 | Peak allocated memory 731.3→497.8 MiB; throughput 10,713.7→9,201.4 tok/s |
+| Laptop 151.9M architecture, reduced seq=128 / micro-batch=1 | 782.8 tok/s; peak allocated 2,611.4 MiB (bf16 autocast, fp32 persistent state) |
+| Colab Tesla T4 throughput | Small fp32 18,270.0 tok/s; mid fp32 11,172.1 tok/s; mid bf16 autocast (non-native) 8,816.1 tok/s |
+| Colab T4 activation checkpointing, mid model, sequence 1024 | Peak allocated memory 1,015.4→603.4 MiB; throughput 7,610.0→6,031.7 tok/s (non-native bf16 autocast) |
+| Colab T4 reduced 151.9M architecture | 941.9 tok/s without checkpointing; 825.7 with checkpointing; same reduced seq/batch as laptop |
+| CPU convergence | Single/FSDP/TP/2D all complete 150 synthetic-data steps; final loss ~1.59 |
 
-Honest reading: at this model size on loopback gloo, parallelism does not speed
-training up (scaling efficiency 61% at 2 ranks, below 1x at 4); the incomplete data
-points (FSDP/TP memory savings, 2D throughput, TP/2D convergence, FSDP resume timing)
-are listed in BENCHMARKS.md as not completed.
+CPU/Gloo timing does not predict multi-GPU performance. Four CPU ranks share three WSL-reported physical cores; DP points increase global batch. GPU results use one device, and the 151.9M measurement reduces the shipped workload to fit 4 GiB VRAM. The laptop profiler captures CUDA API activity without kernel timing data; that breakdown is unavailable. Colab captures GPU kernel timings. T4 software-supported BF16 autocast is not a native BF16 hardware benchmark.
 
-Methodology, hardware, all tables and caveats: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
-Reproduce with `benchmarks/run_all.sh`.
+[Full report and figures](docs/BENCHMARKS.md), [dated snapshot](docs/BENCHMARKS-20261014.md), [raw artifacts](benchmarks/results/20261014/README.md), [historical October 4/5 report](docs/archive/BENCHMARKS-20261004.md). Reproduce with `benchmarks/rebenchmark.py` and `benchmarks/supplement.py`.
+
+The [Colab Tesla T4 report](docs/BENCHMARKS-COLAB-20261014.md) includes matching-workload comparisons, exact resume checks, and [verified raw artifacts](benchmarks/results/20261014-colab-t4/README.md). Both hosts have one GPU; these measurements do not establish multi-GPU scaling.
+
+For another Colab run, upload [the prepared notebook](benchmarks/colab.ipynb), select a GPU runtime, and click **Runtime → Run all**. It now records native BF16 support separately from emulation and uses float32 automatically on T4. Notebook sharing exposes saved code/output; execution happens in your Colab session.
 
 ## Documentation
 

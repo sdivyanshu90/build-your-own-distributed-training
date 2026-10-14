@@ -1,0 +1,15 @@
+START budget4-dp1
+END budget4-dp1 exit 0
+START budget4-dp2
+END budget4-dp2 exit 0
+START budget4-dp4
+END budget4-dp4 exit 0
+START cuda-resume-float32
+END cuda-resume-float32 exit 0
+START cuda-resume-bfloat16
+END cuda-resume-bfloat16 exit 0
+START profile-gloo
+END profile-gloo exit 0
+START profile-nccl
+END profile-nccl exit 0
+{"failed_cases": []}

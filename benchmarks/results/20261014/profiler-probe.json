@@ -1,0 +1,8 @@
+{
+  "case": "isolated_profiler_probe",
+  "torch": "2.6.0+cu124",
+  "cuda_event_elapsed_ms": 11.542719841003418,
+  "cuda_profiler_event_count": 0,
+  "sum_self_device_us": 0,
+  "cuda_activity_supported": true
+}

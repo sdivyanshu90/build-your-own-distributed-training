@@ -4,7 +4,7 @@ Notation: `P` = total parameters, `L` layers, `d` model width, `B·S` tokens per
 micro-batch per rank, `n = world_size = dp · tp`, `b_w` bytes per parameter element
 held (4 for fp32 master weights), `b_a` bytes per activation element. All formulas
 describe this code; where I measured something, the measurement is cited from
-[BENCHMARKS.md](BENCHMARKS.md) (CPU/gloo, torch 2.6.0, 2026-10-04).
+[BENCHMARKS.md](BENCHMARKS.md) (latest: 2026-10-14, torch 2.6.0+cu124; CPU/Gloo multi-rank and separate single-GPU CUDA measurements).
 
 ## 1. The four layouts
 
@@ -65,15 +65,16 @@ to adjacent ranks/NVLink on a real cluster.
 ## 3. Measured collective schedule (profiler counts, one `train_step`)
 
 Source: `benchmarks/count_collectives.py`, raw data in
-`benchmarks/results/collectives.jsonl`. (Filled from the run; see the table in
-BENCHMARKS.md §Collectives per step.)
+`benchmarks/results/20261014/collectives.jsonl`. See [the full table](BENCHMARKS.md#measured-collective-schedule).
 
 | world | dp | tp | layers | grad_accum K | FSDP all-gather | FSDP reduce-scatter | all_reduce (c10d, total) | of which TP (DTensor functional) |
-|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2 | 2 | 1 | 2 | 1 | 5 | 3 | 3 | 0 |
 | 2 | 2 | 1 | 2 | 2 | 10 | 3 | 3 | 0 |
 | 2 | 1 | 2 | 2 | 1 | 0 | 0 | 16 | 14 |
 | 2 | 1 | 2 | 4 | 1 | 0 | 0 | 30 | 28 |
+| 4 | 2 | 2 | 2 | 1 | 5 | 3 | 18 | 14 |
+| 4 | 2 | 2 | 2 | 2 | 10 | 6 | 32 | 28 |
 
 Reading the counts (2 layers = 2 FSDP block units + 1 root unit):
 
@@ -88,8 +89,7 @@ Reading the counts (2 layers = 2 FSDP block units + 1 root unit):
   each of `wq, wk, wv, gate_proj, up_proj` separately). The remaining 2 plain
   all-reduces are the finite check and the clip norm. No TP collectives occur outside the
   blocks (replicated embedding/head).
-* The 2D (4-rank) count was not obtained: the attempt crashed on the 2D gradient
-  accumulation bug (finding #5) and the re-run did not complete in the time available.
+* **2D dp=2,tp=2:** K=1 has 5 gathers, 3 reduce-scatters, and 14 functional TP all-reduces. K=2 has 10 gathers, 6 reduce-scatters, and 28 functional TP all-reduces. The implementation synchronizes every micro-step in 2D to avoid deferred DTensor-gradient incompatibility; the full accumulation regression and convergence run pass. Functional events are wrappers around c10d events, so the columns must not be summed as separate communication.
 
 ## 4. Memory per rank
 
@@ -102,7 +102,7 @@ state_bytes(rank) = (P_tp / tp + P_rep) / dp_shard · (b_w + b_grad + 2·b_adam)
 ```
 
 * FSDP `FULL_SHARD`: params, grads and Adam moments all `/dp` (ZeRO-3).
-* `SHARD_GRAD_OP` (ZeRO-2): params stay full between steps; grads + moments `/dp`.
+* `SHARD_GRAD_OP`: parameters are unsharded before forward, retained through backward, and reshared afterward; gradients and optimizer state are sharded. Its measured post-step resident state equals FULL_SHARD here, while transient peaks and gather schedules differ.
 * Transient: one FSDP unit gathered at a time (`limit_all_gathers`), i.e.
   `P_block/tp` elements in `param_dtype`, plus its unsharded gradient before
   reduce-scatter. Under `no_sync` (accumulation) unsharded gradients of all units can
@@ -117,12 +117,7 @@ BENCHMARKS.md §Memory; the check of the formula against them is below.
 
 Measured vs formula: see the memory table and the formula-check lines in BENCHMARKS.md §Memory per rank.
 
-Formula check: `P·16 B` for the `mid` model is 424.1 MiB; the single-process run holds 424.1 MiB of parameters+gradients+Adam state, and `NO_SHARD` at dp=2 holds the same 424.1 MiB on each rank (replication, no saving).
-* SHARD_GRAD_OP (ZeRO-2) dp=2: not measured (run did not complete on the shared machine).
-* FULL_SHARD dp=2: not measured (run did not complete on the shared machine).
-* FULL_SHARD dp=4: not measured (run did not complete on the shared machine).
-* TP=2: not measured (run did not complete on the shared machine).
-* 2D dp=2 x tp=2: not measured (run did not complete on the shared machine).
+Formula check on the October 14 `mid` run: `P·16 B` is 424.1 MiB. The single-process and NO_SHARD dp=2 cases retain 424.1 MiB/rank; SHARD_GRAD_OP and FULL_SHARD dp=2 retain 212.1; FULL_SHARD dp=4 retains 106.0; TP=2 retains 244.1; TP=4 retains 154.1; 2D dp=2,tp=2 retains 122.1. TP savings are limited by replicated embeddings/norms/head. These are post-step tensor snapshots, distinct from peak RSS; summing process RSS can double-count shared pages. [Full memory table](BENCHMARKS.md#cpu-memory-per-rank).
 
 ## 5. Sequence parallelism
 

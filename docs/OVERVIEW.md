@@ -30,10 +30,9 @@ day and verified against single-process references.
 * Not a framework or a library with a stable API. There is no pipeline parallelism,
   expert parallelism/MoE, context parallelism, FP8, `torch.compile` integration,
   KV-cache/inference, or elastic membership change (restart + resume instead).
-* Not performance-tuned for any GPU. **All benchmark numbers in this repository are
-  CPU/gloo on a laptop-class machine** (BENCHMARKS.md). They validate that the code
-  scales its *work* correctly and expose software overhead; they say nothing
-  quantitative about GPU/NCCL throughput.
+* Not performance-tuned for any GPU. Measurements cover CPU/Gloo multi-rank work
+  and separate single-GPU runs on an RTX 3050 Laptop and Colab Tesla T4
+  (BENCHMARKS.md). They do not establish multi-GPU NCCL throughput or scaling.
 * Not a data-preparation pipeline: the repo ships a synthetic corpus and a reader for
   pre-tokenised `uint16` files, but no tokenisation script.
 * Not a numerics research tool: loss-scale handling is bf16-only, there is no
@@ -42,11 +41,7 @@ day and verified against single-process references.
 ## Scope of the claims in these docs
 
 Every number is from a run described in BENCHMARKS.md (command, hardware, torch
-version, date 2026-10-04) or from the code itself (parameter counts, formulas,
-collective counts measured with the profiler). Statements about GPUs/NCCL are
-qualitative and labelled as such. Statements about what the code does cite file
-paths. Where something was not run (125M/7B training, NCCL, multi-node, the FSDP
-sharded optimizer-state path on GPU), the docs say so.
+version, latest date 2026-10-14) or from the code itself (parameter counts and formulas). The latest run completes CPU/Gloo multi-rank tests and the full benchmark matrix, plus real single-GPU CUDA/NCCL training, bf16 autocast, memory, and resume. The 151.9M architecture is measured only at reduced sequence/batch settings. Multi-GPU NCCL/FSDP/TP, 7B, multi-node, and GPU FSDP optimizer conversion remain unmeasured. GPU kernel profiler timing is unavailable in WSL, while the supplied Colab trace captures 6,147 GPU kernel events. T4 BF16 autocast uses software support without native BF16 acceleration. The two hosts are separate single-GPU environments.
 
 ## Repository map
 
@@ -62,7 +57,7 @@ src/observability/        JSON logging, metrics/MFU, profiler
 src/utils/                dtype policy, seeding, launch environment
 config/                   test_tiny, base, 125m, 7b YAML
 tests/                    unit / integration / fault / performance(bench_*)
-benchmarks/               reproducible CPU/gloo harness + raw results
+benchmarks/               CPU/Gloo and CUDA harness, Colab notebook + raw results
 docs/                     this handbook
 .github/workflows/ci.yml  ruff + mypy + CPU/gloo pytest
 ```
