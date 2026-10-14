@@ -1,0 +1,22 @@
+{
+  "run_id": "20261014T133332Z",
+  "execution_cases": 15,
+  "execution_failures": 0,
+  "measurement_records": 15,
+  "original_checksums_verified": 24,
+  "source_commit_pinned_by_notebook": "3f96b82778688f27f87f710592b1912103939921",
+  "matching_local_workload_fields": true,
+  "resume_identical_steps_each_policy": 15,
+  "gpu": "Tesla T4",
+  "compute_capability": [
+    7,
+    5
+  ],
+  "gpu_memory_bytes_from_trace": 15637086208,
+  "bf16_probe_including_emulation": true,
+  "native_bf16_inferred_from_pytorch_2_6_check": false,
+  "bf16_check_source": "https://github.com/pytorch/pytorch/blob/v2.6.0/torch/cuda/__init__.py#L177-L207",
+  "trace_kernel_events": 6147,
+  "profiler_device_self_us": 199339.47900000185,
+  "scope": "Single-GPU synthetic measurements; no Colab pytest suite or multi-GPU verification"
+}

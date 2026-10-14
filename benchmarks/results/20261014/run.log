@@ -1,0 +1,63 @@
+START scaling
+END scaling: exit=0 duration=107.476s
+START memory
+END memory: exit=0 duration=104.192s
+START comm
+END comm: exit=0 duration=14.083s
+START resume
+END resume: exit=0 duration=34.412s
+START fault
+END fault: exit=0 duration=11.018s
+START convergence
+END convergence: exit=0 duration=59.354s
+START count-w2-tp1-k1-l2
+END count-w2-tp1-k1-l2: exit=0 duration=4.489s
+START count-w2-tp1-k2-l2
+END count-w2-tp1-k2-l2: exit=0 duration=4.989s
+START count-w2-tp2-k1-l2
+END count-w2-tp2-k1-l2: exit=0 duration=4.743s
+START count-w2-tp2-k1-l4
+END count-w2-tp2-k1-l4: exit=0 duration=5.038s
+START count-w4-tp2-k1-l2
+END count-w4-tp2-k1-l2: exit=0 duration=4.838s
+START count-w4-tp2-k2-l2
+END count-w4-tp2-k2-l2: exit=0 duration=4.786s
+START repeat2-dp1
+END repeat2-dp1: exit=0 duration=16.399s
+START repeat2-dp2
+END repeat2-dp2: exit=0 duration=18.206s
+START repeat2-dp4
+END repeat2-dp4: exit=0 duration=20.067s
+START repeat3-dp1
+END repeat3-dp1: exit=0 duration=16.209s
+START repeat3-dp2
+END repeat3-dp2: exit=0 duration=17.95s
+START repeat3-dp4
+END repeat3-dp4: exit=0 duration=19.571s
+START cuda-small-float32
+END cuda-small-float32: exit=0 duration=9.557s
+START cuda-mid-float32
+END cuda-mid-float32: exit=0 duration=16.297s
+START cuda-small-bfloat16
+END cuda-small-bfloat16: exit=0 duration=9.056s
+START cuda-mid-bfloat16
+END cuda-mid-bfloat16: exit=0 duration=13.288s
+START cuda-memory-s128-ac0
+END cuda-memory-s128-ac0: exit=0 duration=7.599s
+START cuda-memory-s128-ac1
+END cuda-memory-s128-ac1: exit=0 duration=8.456s
+START cuda-memory-s512-ac0
+END cuda-memory-s512-ac0: exit=0 duration=8.169s
+START cuda-memory-s512-ac1
+END cuda-memory-s512-ac1: exit=0 duration=8.907s
+START cuda-memory-s1024-ac0
+END cuda-memory-s1024-ac0: exit=0 duration=9.161s
+START cuda-memory-s1024-ac1
+END cuda-memory-s1024-ac1: exit=0 duration=8.551s
+START cuda-125m-ac0
+END cuda-125m-ac0: exit=0 duration=9.757s
+START cuda-125m-ac1
+END cuda-125m-ac1: exit=0 duration=11.066s
+START report
+END report: exit=0 duration=1.874s
+{"failed_cases": []}

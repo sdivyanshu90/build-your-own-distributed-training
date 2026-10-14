@@ -47,8 +47,7 @@ base:
    that invariant, and keep `drop_last=True`.
 2. **A rank died.** The survivors block in the next collective; `torchrun`'s agent
    notices the dead worker and SIGTERMs the rest. In the measured fault test
-   (BENCHMARKS.md) detection took a few seconds because the agent, not NCCL/gloo
-   timeouts, ended the job.
+   ([BENCHMARKS.md](BENCHMARKS.md#rank-failure-recovery)) detection took 0.47 seconds; relaunch-to-first-metric took 3.73 seconds. The agent, not a collective timeout, ended the job.
 3. **Wrong group in a collective** (world vs `dp_group` vs `tp_group`).
 4. **Checkpoint save**: every rank must call `save_checkpoint` (it contains two
    barriers). Calling it under `if rank == 0:` deadlocks.
@@ -69,7 +68,7 @@ on each rank to see who is in which collective.
 * Hide a GPU on a mixed box: `CUDA_VISIBLE_DEVICES=""`, otherwise FSDP/`DeviceMesh`
   may bind to the GPU.
 
-## NCCL-specific (not exercised here)
+## Multi-GPU NCCL-specific (not benchmarked here)
 
 `NCCL_SOCKET_IFNAME`, `NCCL_IB_*` for multi-node; TP groups should be intra-node
 (contiguous ranks) — verify with the layout table printed at start-up. On a single
@@ -78,10 +77,9 @@ GPU `LOCAL_RANK >= device_count` is rejected up front.
 ## Memory
 
 **CPU OOM-kill with several ranks (observed risk)** — each rank is a full Python +
-torch process (~250-300 MB RSS before any model) and FSDP builds the *full* model on
+torch process (the latest CUDA-enabled build uses roughly 600–700 MiB RSS after constructing small CPU models) and FSDP builds the *full* model on
 every rank before sharding, so peak RSS at start-up is `P·4 B` per rank regardless
-of `dp`. Estimate `ranks × (300 MB + 4P + activations)` before launching; this is why
-the 125M config was not run in this repository's benchmarks.
+of `dp`. Include measured runtime overhead, full-model construction, activations, and optimizer state in the memory budget. The latest run measures the 151.9M architecture on GPU only after reducing sequence to 128 and micro-batch to 1; the shipped full-batch workload remains unmeasured.
 
 **CUDA OOM** — first lever order: `activation_checkpointing`, smaller
 `micro_batch_size` with more `grad_accum_steps`, larger `tp_size`, shorter `seq_len`.
@@ -140,4 +138,6 @@ but the model uses the DTensor plan.
 
 **Is the mixed-precision path tested?** The policy objects and dtype aliases are;
 the GPU-only test that checks fp32 gradient reduction under FSDP is a skipped stub.
-Bf16 training was not run for this documentation (CPU only).
+The latest benchmark runs real bf16-autocast training and exact resume on the laptop RTX 3050 and separately on a Colab T4. Multi-GPU reduction dtype and GPU FSDP mixed precision remain unverified. The WSL profiler records CUDA API calls without kernel timings; that raw zero device-time breakdown means unavailable. The Colab trace contains GPU kernel timings.
+
+On PyTorch 2.6, `torch.cuda.is_bf16_supported()` includes emulation by default. Use `torch.cuda.is_bf16_supported(including_emulation=False)` to select native BF16 benchmarks. The T4 trace reports capability 7.5, so its successful BF16-autocast runs are software-supported and do not establish native BF16 throughput. The prepared Colab notebook now selects float32 on T4. [Precision interpretation](BENCHMARKS-COLAB-20261014.md).

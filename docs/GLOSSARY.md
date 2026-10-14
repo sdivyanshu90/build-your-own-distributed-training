@@ -18,7 +18,7 @@
 | **RoPE** | Rotary position embedding (rotate-half layout here). |
 | **SwiGLU** | `down(silu(gate(x))·up(x))` MLP. |
 | **MFU** | Model FLOPs utilisation: achieved model FLOP/s ÷ hardware peak. Meaningless on CPU here. |
-| **gloo / NCCL** | Collective backends: CPU-capable / NVIDIA GPU. All measured results here are gloo. |
+| **gloo / NCCL** | Collective backends: CPU-capable / NVIDIA GPU. Latest measurements include CPU/Gloo multi-rank and separate single-GPU CUDA/NCCL runs; no multi-GPU NCCL scaling is measured. |
 | **algbw / busbw** | `bytes/time` and the same scaled by the ring-algorithm factor (all-reduce `2(n-1)/n`, all-gather and reduce-scatter `(n-1)/n`) following nccl-tests. |
 | **RSS** | Resident set size of a process (what the CPU memory benchmark reports). |
 | **`_SUCCESS` marker** | File written last (rank 0, after a barrier) that commits a checkpoint. |

@@ -1,0 +1,13 @@
+{
+  "python": "3.12.15",
+  "torch": "2.6.0+cu124",
+  "cuda": "12.4",
+  "nccl": [
+    2,
+    21,
+    5
+  ],
+  "gpu_count": 1,
+  "gpu": "Tesla T4",
+  "bf16": true
+}

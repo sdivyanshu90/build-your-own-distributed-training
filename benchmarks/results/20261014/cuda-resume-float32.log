@@ -1,0 +1,11 @@
+DeviceMesh layout (dp_size=1, tp_size=1):
+        tp=0     
+  dp=0   r0     
+DeviceMesh layout (dp_size=1, tp_size=1):
+        tp=0     
+  dp=0   r0     
+DeviceMesh layout (dp_size=1, tp_size=1):
+        tp=0     
+  dp=0   r0     
+{"ts": 0.1917, "level": "INFO", "rank": 0, "run_id": "B", "event": "resumed", "step": 15, "path": "/tmp/dt_bench_ckpt_raezzria/B/step_15"}
+{"bench": "resume", "preset": "small", "world_size": 1, "backend": "nccl", "dtype": "float32", "dp": 1, "steps": 30, "resume_at": 15, "n_params": 3997696, "ckpt_save_s": 0.1073, "trainer_build_plus_load_s": 0.1938, "ckpt_bytes_total": 48063937, "max_abs_loss_diff": 0.0, "bit_identical_steps": 15, "compared_steps": 15, "loss_continuous": [8.34101, 8.353866, 8.318241, 8.328506, 8.352398, 8.365976, 8.354195, 8.410701, 8.409082, 8.42457, 8.354828, 8.434219, 8.417831, 8.433502, 8.412222, 8.379936, 8.347104, 8.380299, 8.296765, 8.3549, 8.381411, 8.350773, 8.376595, 8.381277, 8.230883, 8.298234, 8.305166, 8.268339, 8.307087, 8.300217], "loss_resumed_second_half": [8.379936, 8.347104, 8.380299, 8.296765, 8.3549, 8.381411, 8.350773, 8.376595, 8.381277, 8.230883, 8.298234, 8.305166, 8.268339, 8.307087, 8.300217], "hardware": {"platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.43", "cpu": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics", "cpu_count": 6, "torch": "2.6.0+cu124", "python": "3.12.15", "backend": "nccl", "device": "cuda", "cuda": "12.4", "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU", "loadavg_1m_at_end": 2.52, "omp_num_threads": "1", "torch_num_threads": 1}}

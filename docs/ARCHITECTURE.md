@@ -306,10 +306,10 @@ reduction order can break bit-exactness).
   because of torch-2.3 bugs.** On the torch 2.6 CPU/gloo environment used for this
   audit, both run: 2D loss and global grad-norm match the single-process reference
   (`tests/integration/test_parallel_equivalence.py`, 4 ranks) and FSDP resume is
-  within the test tolerance on CPU (a 2-rank smoke run of the resume benchmark on the `tiny` preset showed 0.0 loss difference; the full-size dp=2 resume benchmark did not complete). What *does* remain GPU-only is the portable re-keyed
+  bit-exact in the October 14 full `small` resume benchmark at both 1 and 2 ranks (15/15 post-resume losses identical). The complete 97-pass suite and 150-step 2D convergence run also complete. What *does* remain GPU-only is the portable re-keyed
   optimizer-state path in `fsdp_utils.get_optimizer_state_dict`: without CUDA the
   code stores each rank's raw `optimizer.state_dict()` (`__fsdp_per_rank__`), which is
-  topology-locked. The CUDA path (`FSDP.optim_state_dict`) was not run here.
+  topology-locked. The GPU FSDP conversion path (`FSDP.optim_state_dict`) remains untested; new single-GPU CUDA resume tests use an unwrapped model and pass in fp32/bf16.
 * **Checkpoints cannot be resharded.** `load_checkpoint` now rejects a different
   `(world, tp, dp)` explicitly; `full=True` save/load exists in the API but the
   trainer never calls it.

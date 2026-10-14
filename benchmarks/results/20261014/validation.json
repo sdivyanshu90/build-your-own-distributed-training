@@ -1,0 +1,39 @@
+{
+  "verified_utc": "2026-10-14T13:45:56.123740+00:00",
+  "measurement_files": 14,
+  "measurement_records": 54,
+  "record_counts": {
+    "scaling": 6,
+    "memory": 8,
+    "comm": 2,
+    "resume": 2,
+    "fault": 1,
+    "convergence": 4,
+    "collectives": 6,
+    "repeats": 6,
+    "cuda": 4,
+    "cuda-memory": 6,
+    "cuda-125m": 2,
+    "thread-budget": 3,
+    "cuda-resume": 2,
+    "profiles": 2
+  },
+  "execution_blocks": 38,
+  "execution_failures": 0,
+  "pytest": {
+    "passed": 97,
+    "skipped": 1,
+    "failed": 0
+  },
+  "numerical_invariants": "passed",
+  "training_source_configs_tests_unchanged": true,
+  "historical_measurements_unchanged": true,
+  "markdown_documents": 26,
+  "markdown_tables": 96,
+  "local_links_checked": 230,
+  "local_link_errors": 0,
+  "notebook": "prepared notebook syntax verified; executed Colab notebook preserved separately with its original Windows file",
+  "cuda_profiler_kernel_events": "unavailable in local WSL; CUDA event timing positive; Colab kernel events validated separately",
+  "cpu_thread_control": "4 total OMP/MKL threads requested; PyTorch totals observed 3,4,4",
+  "active_benchmark_processes": 0
+}

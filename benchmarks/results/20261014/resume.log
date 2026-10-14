@@ -1,0 +1,29 @@
+DeviceMesh layout (dp_size=1, tp_size=1):
+        tp=0     
+  dp=0   r0     
+DeviceMesh layout (dp_size=1, tp_size=1):
+        tp=0     
+  dp=0   r0     
+DeviceMesh layout (dp_size=1, tp_size=1):
+        tp=0     
+  dp=0   r0     
+{"ts": 0.1045, "level": "INFO", "rank": 0, "run_id": "B", "event": "resumed", "step": 15, "path": "/tmp/dt_bench_ckpt_mo93j9wm/B/step_15"}
+{"bench": "resume", "preset": "small", "world_size": 1, "dp": 1, "steps": 30, "resume_at": 15, "n_params": 3997696, "ckpt_save_s": 0.0362, "trainer_build_plus_load_s": 0.1079, "ckpt_bytes_total": 48062086, "max_abs_loss_diff": 0.0, "bit_identical_steps": 15, "compared_steps": 15, "loss_continuous": [8.341011, 8.353865, 8.318241, 8.328505, 8.352399, 8.365977, 8.354194, 8.410702, 8.409082, 8.424574, 8.35483, 8.434216, 8.417828, 8.433498, 8.412222, 8.379935, 8.347104, 8.380299, 8.296768, 8.354897, 8.381413, 8.350773, 8.376595, 8.381275, 8.230883, 8.298234, 8.305164, 8.268339, 8.307087, 8.300217], "loss_resumed_second_half": [8.379935, 8.347104, 8.380299, 8.296768, 8.354897, 8.381413, 8.350773, 8.376595, 8.381275, 8.230883, 8.298234, 8.305164, 8.268339, 8.307087, 8.300217], "hardware": {"platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.43", "cpu": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics", "cpu_count": 6, "torch": "2.6.0+cu124", "python": "3.12.15", "backend": "gloo", "device": "cpu", "cuda": null, "gpu": null, "loadavg_1m_at_end": 3.12, "omp_num_threads": "6", "torch_num_threads": 3}}
+DeviceMesh layout (dp_size=2, tp_size=1):
+        tp=0     
+  dp=0   r0     
+  dp=1   r1     
+DeviceMesh layout (dp_size=2, tp_size=1):
+        tp=0     
+  dp=0   r0     
+  dp=1   r1     
+/home/somu/.local/share/distributed-training-benchmark/venv/lib/python3.12/site-packages/torch/distributed/fsdp/fully_sharded_data_parallel.py:690: FutureWarning: FSDP.state_dict_type() and FSDP.set_state_dict_type() are being deprecated. Please use APIs, get_state_dict() and set_state_dict(), which can support different parallelisms, FSDP1, FSDP2, DDP. API doc: https://pytorch.org/docs/stable/distributed.checkpoint.html#torch.distributed.checkpoint.state_dict.get_state_dict .Tutorial: https://pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html .
+  warnings.warn(
+/home/somu/.local/share/distributed-training-benchmark/venv/lib/python3.12/site-packages/torch/distributed/fsdp/fully_sharded_data_parallel.py:690: FutureWarning: FSDP.state_dict_type() and FSDP.set_state_dict_type() are being deprecated. Please use APIs, get_state_dict() and set_state_dict(), which can support different parallelisms, FSDP1, FSDP2, DDP. API doc: https://pytorch.org/docs/stable/distributed.checkpoint.html#torch.distributed.checkpoint.state_dict.get_state_dict .Tutorial: https://pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html .
+  warnings.warn(
+DeviceMesh layout (dp_size=2, tp_size=1):
+        tp=0     
+  dp=0   r0     
+  dp=1   r1     
+{"ts": 0.1819, "level": "INFO", "rank": 0, "run_id": "B", "event": "resumed", "step": 15, "path": "/tmp/dt_bench_ckpt_yuuo3rsx/B/step_15"}
+{"bench": "resume", "preset": "small", "world_size": 2, "dp": 2, "steps": 30, "resume_at": 15, "n_params": 3997696, "ckpt_save_s": 0.0773, "trainer_build_plus_load_s": 0.1858, "ckpt_bytes_total": 52313874, "max_abs_loss_diff": 0.0, "bit_identical_steps": 15, "compared_steps": 15, "loss_continuous": [8.347252, 8.330954, 8.360065, 8.332786, 8.34602, 8.350659, 8.357918, 8.392879, 8.370063, 8.296713, 8.334261, 8.381371, 8.296424, 8.325913, 8.316631, 8.348355, 8.423555, 8.326065, 8.357839, 8.383028, 8.335191, 8.348744, 8.301195, 8.360266, 8.273623, 8.257013, 8.331923, 8.300014, 8.319698, 8.306755], "loss_resumed_second_half": [8.348355, 8.423555, 8.326065, 8.357839, 8.383028, 8.335191, 8.348744, 8.301195, 8.360266, 8.273623, 8.257013, 8.331923, 8.300014, 8.319698, 8.306755], "hardware": {"platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.43", "cpu": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics", "cpu_count": 6, "torch": "2.6.0+cu124", "python": "3.12.15", "backend": "gloo", "device": "cpu", "cuda": null, "gpu": null, "loadavg_1m_at_end": 3.39, "omp_num_threads": "3", "torch_num_threads": 3}}

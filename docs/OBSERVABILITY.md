@@ -66,3 +66,9 @@ total self time. Notes:
 3. A Chrome/Perfetto trace of the profiled window: FSDP all-gathers should overlap
    compute with `forward_prefetch`/`BACKWARD_PRE`.
 4. `grad_norm` spikes and `GradNotFiniteError` — see TROUBLESHOOTING.md.
+
+## Latest profiler evidence (2026-10-14)
+
+The CPU/Gloo trace records three real training steps. The laptop WSL CUDA trace captures host/API activity but no GPU kernel timing events; all device self-times are zero. An isolated GEMM probe also has zero profiler device events while CUDA event timing records 11.54 ms of actual execution. Treat that device-time/communication fraction as **unavailable**, not 0%. Operator self-time fractions are not elapsed wall-time fractions. No MFU claim is made for RTX 3050 because the project has no calibrated peak for it. [Laptop profiler results](BENCHMARKS.md#profiler-traces).
+
+The supplied Colab Tesla T4 trace captures 6,147 GPU kernel events and 199.34 ms of attributed device self-time over three profiled steps. Its raw collective fraction is 0.0 for a single-device workload, with no inter-GPU collectives to analyze. That does not establish communication overlap or distributed scaling. The T4 trace uses software-supported BF16 autocast, not native BF16 acceleration. [Colab profiler evidence](BENCHMARKS-COLAB-20261014.md#colab-gpu-profiler).

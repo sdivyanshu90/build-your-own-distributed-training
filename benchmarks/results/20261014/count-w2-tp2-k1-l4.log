@@ -1,0 +1,10 @@
+DeviceMesh layout (dp_size=1, tp_size=2):
+        tp=0     tp=1     
+  dp=0   r0     r1     
+/home/somu/.local/share/distributed-training-benchmark/venv/lib/python3.12/site-packages/torch/distributed/tensor/_random.py:44: UserWarning: DTensor random operators may not have complete support on cpu device mesh
+  warnings.warn(
+/home/somu/.local/share/distributed-training-benchmark/venv/lib/python3.12/site-packages/torch/distributed/tensor/_random.py:44: UserWarning: DTensor random operators may not have complete support on cpu device mesh
+  warnings.warn(
+ERROR:2026-10-14 13:09:34 101387:101387 DeviceProperties.cpp:47] gpuGetDeviceCount failed with code 100
+ERROR:2026-10-14 13:09:34 101388:101388 DeviceProperties.cpp:47] gpuGetDeviceCount failed with code 100
+{"bench": "collective_count", "world_size": 2, "dp": 1, "tp": 2, "grad_accum": 1, "n_layers": 4, "counts": {"_c10d_functional::all_reduce": 28, "c10d::allreduce_": 30, "gloo:all_reduce": 30}, "hardware": {"platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.43", "cpu": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics", "cpu_count": 6, "torch": "2.6.0+cu124", "python": "3.12.15", "backend": "gloo", "device": "cpu", "cuda": null, "gpu": null, "loadavg_1m_at_end": 2.89, "omp_num_threads": "1", "torch_num_threads": 1}}

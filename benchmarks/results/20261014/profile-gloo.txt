@@ -1,0 +1,35 @@
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+                                                   Name    Self CPU %      Self CPU   CPU total %     CPU total  CPU time avg       CPU Mem  Self CPU Mem    # of Calls  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+                                               aten::mm        46.95%     905.760ms        46.96%     906.064ms       1.736ms     361.50 Mb     361.50 Mb           522  
+        FullyShardedDataParallel._pre_backward_prefetch         7.01%     135.185ms         7.22%     139.387ms       4.646ms      67.55 Mb      67.55 Mb            30  
+                                            aten::copy_         3.90%      75.209ms         3.90%      75.209ms      16.882us           0 b           0 b          4455  
+aten::_scaled_dot_product_flash_attention_for_cpu_ba...         3.67%      70.788ms         3.82%      73.625ms       3.068ms      36.00 Mb    -771.00 Kb            24  
+           FullyShardedDataParallel._post_backward_hook         3.54%      68.278ms         5.07%      97.788ms       3.260ms     -68.66 Mb    -159.54 Mb            30  
+         FullyShardedDataParallel._pre_forward_prefetch         3.49%      67.271ms         3.70%      71.474ms       2.382ms      67.55 Mb      67.55 Mb            30  
+                                              aten::mul         3.12%      60.232ms         3.21%      61.974ms      69.322us     392.83 Mb     392.83 Mb           894  
+                                              aten::cat         2.56%      49.454ms         2.58%      49.809ms     535.585us     109.60 Mb     109.60 Mb            93  
+                       aten::_log_softmax_backward_data         2.35%      45.287ms         2.35%      45.287ms       7.548ms      48.00 Mb      48.00 Mb             6  
+                                            aten::fill_         2.30%      44.279ms         2.30%      44.279ms      65.598us           0 b           0 b           675  
+                                     aten::_log_softmax         1.74%      33.492ms         1.74%      33.492ms       5.582ms      48.00 Mb      48.00 Mb             6  
+      aten::_scaled_dot_product_flash_attention_for_cpu         1.65%      31.755ms         1.67%      32.243ms       1.343ms      12.38 Mb    -486.00 Kb            24  
+                                              aten::add         1.28%      24.649ms         1.30%      24.987ms     117.311us      90.11 Mb      90.11 Mb           213  
+                  FullyShardedDataParallel._pre_forward         1.27%      24.573ms         5.04%      97.295ms       3.243ms      91.55 Mb      24.01 Mb            30  
+enumerate(DataLoader)#_SingleProcessDataLoaderIter._...         1.06%      20.512ms         2.30%      44.344ms       7.391ms      48.00 Kb     -48.25 Kb             6  
+                       FullyShardedDataParallel.forward         1.04%      20.045ms        48.15%     928.913ms      30.964ms     601.81 Mb    -144.21 Mb            30  
+                                             aten::add_         0.82%      15.772ms         0.86%      16.641ms      40.488us          24 b        -672 b           411  
+                                           aten::select         0.68%      13.098ms         0.80%      15.427ms       1.241us           0 b           0 b         12432  
+                 FullyShardedDataParallel._post_forward         0.62%      11.950ms         0.68%      13.111ms     437.021us     -67.55 Mb     -67.55 Mb            30  
+                                    aten::silu_backward         0.61%      11.835ms         0.61%      11.835ms     493.120us      33.00 Mb      33.00 Mb            24  
+       autograd::engine::evaluate_function: MmBackward0         0.59%      11.338ms        32.54%     627.875ms       3.608ms       1.50 Mb    -198.00 Mb           174  
+                                              aten::div         0.45%       8.609ms         0.50%       9.624ms      62.899us      49.89 Mb      49.89 Mb           153  
+                                              aten::sum         0.39%       7.559ms         0.47%       9.139ms      43.517us      12.16 Mb      12.16 Mb           210  
+                                             aten::mul_         0.34%       6.479ms         0.38%       7.311ms      28.012us          32 b        -664 b           261  
+                                             aten::silu         0.34%       6.477ms         0.34%       6.477ms     269.882us      33.00 Mb      33.00 Mb            24  
+autograd::engine::evaluate_function: torch::autograd...         0.32%       6.159ms         5.81%     112.092ms       3.736ms    -160.22 Mb     -91.55 Mb            30  
+                                       aten::as_strided         0.30%       5.724ms         0.30%       5.724ms       0.339us           0 b           0 b         16905  
+                              Optimizer.step#AdamW.step         0.28%       5.468ms         1.41%      27.208ms       9.069ms           0 b     -45.78 Mb             3  
+                                               aten::eq         0.28%       5.441ms         0.28%       5.441ms      62.535us       5.72 Mb       5.72 Mb            87  
+                                               aten::ne         0.28%       5.364ms         0.31%       5.934ms      68.206us       5.72 Mb       5.72 Mb            87  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+Self CPU time total: 1.929s

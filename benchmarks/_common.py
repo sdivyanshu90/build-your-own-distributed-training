@@ -96,14 +96,18 @@ def hardware_info() -> dict[str, Any]:
                     break
     except OSError:
         pass
+    backend = dist.get_backend() if dist.is_initialized() else "gloo"
+    cuda_run = backend == "nccl"
     return {
         "platform": platform.platform(),
         "cpu": cpu,
         "cpu_count": os.cpu_count(),
         "torch": torch.__version__,
         "python": platform.python_version(),
-        "backend": "gloo",
-        "device": "cpu",
+        "backend": backend,
+        "device": "cuda" if cuda_run else "cpu",
+        "cuda": torch.version.cuda if cuda_run else None,
+        "gpu": torch.cuda.get_device_name() if cuda_run else None,
         "loadavg_1m_at_end": round(os.getloadavg()[0], 2),
         "omp_num_threads": os.environ.get("OMP_NUM_THREADS"),
         "torch_num_threads": torch.get_num_threads(),

@@ -1,0 +1,24 @@
+....................s................................................... [ 73%]
+..........................                                               [100%]
+============================= slowest 20 durations =============================
+5.79s call     tests/integration/test_convergence_tiny.py::test_convergence_pure_tp
+5.03s call     tests/integration/test_2d_parallel_forward.py::test_handrolled_tp_linears_match_reference
+4.55s call     tests/integration/test_checkpoint_resume.py::test_checkpoint_resume_fsdp
+4.31s call     tests/integration/test_convergence_tiny.py::test_convergence_pure_fsdp
+3.80s call     tests/integration/test_parallel_equivalence.py::test_2d_fsdp_x_tp_matches_reference
+3.69s call     tests/integration/test_parallel_equivalence.py::test_hybrid_shard_2x2_matches_reference
+3.47s call     tests/integration/test_parallel_equivalence.py::test_handrolled_tp_backward_matches_reference
+3.34s call     tests/fault/test_rank_failure.py::test_recover_from_crash
+3.32s call     tests/integration/test_convergence_tiny.py::test_convergence_single_process
+3.25s call     tests/integration/test_2d_parallel_forward.py::test_tp_model_matches_single_gpu_reference
+3.18s call     tests/integration/test_parallel_equivalence.py::test_fsdp_with_grad_accumulation_matches_reference
+3.09s call     tests/integration/test_parallel_equivalence.py::test_2d_with_grad_accumulation_matches_reference
+3.09s call     tests/integration/test_checkpoint_resume.py::test_checkpoint_resume_equivalence
+3.06s call     tests/unit/test_fsdp_wrapping.py::test_fsdp_sharding_and_forward
+3.03s call     tests/integration/test_parallel_equivalence.py::test_tp2_matches_reference
+2.73s call     tests/integration/test_parallel_equivalence.py::test_fsdp_dp2_matches_reference
+2.72s call     tests/integration/test_parallel_equivalence.py::test_sequence_parallel_tp2_matches_reference
+2.72s call     tests/integration/test_2d_parallel_forward.py::test_fsdp_dp_loss_consistency
+2.57s call     tests/unit/test_fsdp_wrapping.py::test_fsdp_param_count_invariant
+2.53s call     tests/integration/test_parallel_equivalence.py::test_no_shard_replicas_start_identical
+97 passed, 1 skipped in 83.99s (0:01:23)
